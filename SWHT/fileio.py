@@ -3,6 +3,7 @@ functions to read/write data for the imagers
 """
 
 #TODO: hdf5 wrappers for visibilities and images
+#TODO: read/write coeff pickles
 
 import cPickle as pkl
 import numpy as np

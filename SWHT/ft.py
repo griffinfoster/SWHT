@@ -9,10 +9,6 @@ import sys,os
 import struct
 import time
 
-"""
-Fourier Transform Functions
-"""
-
 def phsCenterSrc(obs, t):
     """return an ephem FixedBody source based on the time offset from the obs"""
     src = ephem.FixedBody()

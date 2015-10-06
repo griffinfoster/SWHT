@@ -2,7 +2,8 @@
 Functions and classes to read and parse LOFAR station configuration files
 """
 
-#TODO: drop antennaArray, only (lat,lon,elev) is used from this file, but it is non-trivial to convert (x,y,z) which is in the antennaField file to (lat,long,elev)
+#TODO: currently taking the entire correlation matrix, but only really need to take half
+#TODO: drop antennaArray, only (lat,lon,elev) is used from this file, but it is non-trivial to convert (x,y,z) which is in the antennaField file to (lat,long,elev), look at Tobia's mscorpol
 #TODO: use rotation matrix in antennaField?
 
 import numpy as np

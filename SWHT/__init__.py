@@ -2,5 +2,5 @@
 A module interface to SWHT functions
 """
 
-import ft, lofarConfig, io
+import fileio, ft, lofarConfig, swht
 
