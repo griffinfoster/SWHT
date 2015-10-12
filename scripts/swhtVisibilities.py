@@ -14,6 +14,7 @@ Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield M
 #TODO: apply LOFAR gain solutions
 #TODO: replace ephem with astropy.coordinates
 #TODO: clean-up options
+#TODO: option: image from coefficients
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -72,6 +73,10 @@ if __name__ == '__main__':
     #    help = 'Field of View in degrees, default: 180 (all-sky)')
     o.add_option('-l', '--lmax', dest='lmax', default=32, type='int',
         help = 'Maximum l spherical harmonic quantal number, rule-of-thumb: used number of antenna elements, default: 32')
+    o.add_option('--ocoeffs', dest='ocoeffs', default=None,
+        help = 'Save output image coefficients to a pickle file using this name (include .pkl extention), default: tempCoeffs.pkl')
+    #o.add_option('--icoeffs', dest='icoeffs', default=None,
+    #    help = 'Load an image coefficients pickle file and generate an image')
     opts, args = o.parse_args(sys.argv[1:])
 
     visFile = args[0]
@@ -87,7 +92,10 @@ if __name__ == '__main__':
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
 
         #longitude and latitude of array
-        lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+        #TODO: this is the only point in which antArrays is used, replace with converting the station ITRF X,Y,Z< position to geodetic, currently using ecef.py but the results are only approximately correct
+        #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+        arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+        lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
         print 'LON(deg):', lon, 'LAT(deg):', lat, 'ELEV(m):', elev
 
         #antenna positions
@@ -101,10 +109,7 @@ if __name__ == '__main__':
                     delta = lofarStation.deltas[int(fDict['elem'][aid], 16)]
                     delta = np.array([delta, delta])
                     ants[aid] += delta
-        #print ants
-        #exit()
         nants = ants.shape[0]
-        arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
         print 'NANTENNAS:', nants
 
         #frequency information
@@ -144,27 +149,47 @@ if __name__ == '__main__':
         #        polAcc=np.multiply(polAcc,gains) 
         
         obs = ephem.Observer() #create an observer at the array location
-        obs.long = lon
-        obs.lat = lat
-        obs.elevation = float(elev)
-        obs.epoch = fDict['ts'].year
-        
+        obs.long = lon * (np.pi/180.)
+        obs.lat = lat * (np.pi/180.)
+        #TODO: I don't trust the elev value returned from ecef.ecef2geodetic()
+        #obs.elevation = float(elev)
+        obs.elevation = 0.
+        obs.epoch = fDict['ts']
         obs.date = fDict['ts']
-        src = ephem.FixedBody() #create a source at zenith
-        src._ra = obs.sidereal_time()
-        src._dec = obs.lat
-        src.compute(obs)
-        
-        #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates pointing at zenith
-        xyz = []
-        for a in ants: xyz.append([a[0,0]+arr_xyz[0], a[0,1]+arr_xyz[1], a[0,2]+arr_xyz[2]])
-        xyz = np.array(xyz)
-        #uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq])).reshape(nants*nants,3)
-        uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([cc])).reshape(nants*nants,3) #HACK: convert xyz to uvw but keep in units of meters
+        print 'Observatory:', obs
+
+        #src = ephem.FixedBody() #create a source at zenith
+        #src._ra = obs.sidereal_time()
+        #src._dec = obs.lat
+        #src.compute(obs)
+        #
+        ##get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates pointing at zenith
+        #xyz = []
+        #for a in ants: xyz.append([a[0,0]+arr_xyz[0], a[0,1]+arr_xyz[1], a[0,2]+arr_xyz[2]])
+        #xyz = np.array(xyz)
+        ##uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq])).reshape(nants*nants,3)
+        #uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([cc])).reshape(nants*nants,3) #HACK: convert xyz to uvw but keep in units of meters
+        #print np.reshape(uvw[:,0], (96, 96))
 
         ##uv coverage plot
         #plt.plot(uvw[:,0], uvw[:,1], '.')
         #plt.show()
+
+        #in order to accommodate multiple observations at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
+        LSTangle = obs.sidereal_time() #radians
+        rotMatrix = np.array([[np.cos(LSTangle), -1.*np.sin(LSTangle), 0.],
+                              [np.sin(LSTangle), np.cos(LSTangle),     0.],
+                              [0.,               0.,                   1.]]) #rotate about the z-axis
+        #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
+        xyz = []
+        for a in ants:
+            xyz.append(np.dot(a[0], rotMatrix))
+        xyz = np.array(xyz)
+        repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
+        uvw = np.zeros((nants*nants, 3))
+        uvw[:,0] = (repxyz[:,:,0] - repxyz[:,:,0].T).flatten()
+        uvw[:,1] = (repxyz[:,:,1] - repxyz[:,:,1].T).flatten()
+        uvw[:,2] = (repxyz[:,:,2] - repxyz[:,:,2].T).flatten()
 
         #split up polarizations
         xxVis = corrMatrix[0::2,0::2].reshape(nants*nants)
@@ -172,6 +197,9 @@ if __name__ == '__main__':
         yxVis = corrMatrix[1::2,0::2].reshape(nants*nants)
         yyVis = corrMatrix[1::2,1::2].reshape(nants*nants)
 
+        ##uv coverage plot
+        #plt.plot(uvw[:,0], uvw[:,1], '.')
+        #plt.show()
 
     #TODO: MS
     #elif fDict['fmt']=='ms': #MS-based visibilities
@@ -223,37 +251,49 @@ if __name__ == '__main__':
     #TODO: only doing total intensity right now
     iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVis+yyVis, uvw, np.array([freq]), lmax=opts.lmax)
 
+    #save image coefficients to file
+    if opts.ocoeffs is None: outCoeffPklFn = 'tempCoeffs.pkl'
+    else: outCoeffPklFn = opts.pkl
+    SWHT.fileio.writeCoeffPkl(outCoeffPklFn, iImgCoeffs)
+
+    #iImgCoeffs = np.ones((7, 13, 1))
+
     #print iImgCoeffs.shape
+    #print iImgCoeffs[:,:,0]
     #temp = np.hstack((iImgCoeffs[:,:,0].real, iImgCoeffs.imag[:,:,0]))
+    #temp[0,0] = 0.
     #plt.imshow(temp, interpolation='nearest')
     #plt.colorbar()
     #plt.show()
+    #exit()
 
     #TODO: make image
-    img = SWHT.swht.make2Dimage(iImgCoeffs, dim=[64, 64])
-    plt.imshow(img.real, interpolation='nearest')
-    plt.colorbar()
-    plt.show()
-
-    #img, X, Y, Z = SWHT.swht.make3Dimage(iImgCoeffs, dim=[64, 64])
-    ##plt.imshow(img.imag)
-    ##plt.imshow(X)
-    ##plt.imshow(Z)
-    ##plt.colorbar()
-    ##plt.show()
-
-    #img = img.real
-    #img -= np.min(img)
-    #img /= np.max(img)
-    #print np.max(img), np.min(img)
-
-    #from mpl_toolkits.mplot3d import Axes3D
-    #fig = plt.figure()
-    #ax = fig.gca(projection='3d')
-    ##surf = ax.plot_surface(X.flatten(), Y.flatten(), Z.flatten(), color=img.flatten())
-    #surf = ax.plot_surface(X.flatten(), Y.flatten(), Z.flatten())
-    ##fig.colorbar(surf)
+    #img = SWHT.swht.make2Dimage(iImgCoeffs, dim=[64, 64])
+    #plt.imshow(np.abs(img), interpolation='nearest')
+    #plt.colorbar()
     #plt.show()
+
+    img = SWHT.swht.make3Dimage(iImgCoeffs, dim=[128, 128])
+    img = np.abs(img)
+    [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=128, endpoint=False), np.linspace(0, 2.*np.pi, num=128, endpoint=False))
+    #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
+    from mpl_toolkits.mplot3d import Axes3D
+    from matplotlib import cm
+    from matplotlib.colors import Normalize
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    #X = np.cos(theta-(np.pi/2.)) * np.cos(phi)
+    #Y = np.cos(theta-(np.pi/2.)) * np.sin(phi)
+    #Z = np.sin(theta-(np.pi/2.))
+    X, Y, Z = SWHT.util.sph2cart(theta, phi)
+
+    imin = img.min()
+    imax = img.max()
+    scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
+    C = scalarMap.to_rgba(img)
+
+    surf = ax.plot_surface(X, -1.*Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+    plt.show()
 
     ##save complex image to pickle file
     #if opts.pkl is None: outPklFn = 'tempImage.pkl'

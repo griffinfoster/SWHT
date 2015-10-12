@@ -97,10 +97,11 @@ def getHBADeltas(fn):
 class antennaField():
     def __init__(self, name, fn):
         self.name = name
-        self.rotMatrix = {}
+        self.rotMatrix = {} #roation matrix to transform local horizon positions to relative ITRF positions, needs to be inverted to convert relative ITRF positions to local horizon positions
         self.normVec = {}
-        self.antpos = {}
-        self.location = {}
+        self.antpos = {} #ITRF positions relative to station ITRF in self.location
+        self.localAntPos = {} #local horizon plane positions obtained from applying station rotation matrix to self.antpos
+        self.location = {} #station ITRF position
         fh=open(fn)
         lines = []
         lines = fh.read().split('\n')
@@ -128,7 +129,11 @@ class antennaField():
             else: #antenna positions
                 l0,f0,l1,f1,l2 = infoStr.split(' ')
                 self.antpos[lastMode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0), int(l1), int(l2)))
-        #print self.rotMatrix.keys(), self.normVec.keys(),self.antpos.keys(),self.location.keys()
+        #convert antenna positions to local horizon coordinate system
+        for mode in self.antpos:
+            self.localAntPos[mode] = np.zeros_like(self.antpos[mode])
+            self.localAntPos[mode][:,0,:] = np.linalg.lstsq(self.rotMatrix[mode], self.antpos[mode][:,0,:].T)[0].T
+            self.localAntPos[mode][:,1,:] = np.linalg.lstsq(self.rotMatrix[mode], self.antpos[mode][:,1,:].T)[0].T
 
 class antennaArrays():
     def __init__(self, name, fn):

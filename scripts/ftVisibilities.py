@@ -78,7 +78,10 @@ if __name__ == '__main__':
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
 
         #longitude and latitude of array
-        lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+        #TODO: this is the only point in which antArrays is used, replace with converting the station ITRF X,Y,Z< position to geodetic, currently using ecef.py but the results are only approximately correct
+        #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+        arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+        lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
         print 'LON(deg):', lon, 'LAT(deg):', lat, 'ELEV(m):', elev
 
         #antenna positions
@@ -92,10 +95,7 @@ if __name__ == '__main__':
                     delta = lofarStation.deltas[int(fDict['elem'][aid], 16)]
                     delta = np.array([delta, delta])
                     ants[aid] += delta
-        #print ants
-        #exit()
         nants = ants.shape[0]
-        arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
         print 'NANTENNAS:', nants
 
         #frequency information
@@ -135,9 +135,13 @@ if __name__ == '__main__':
         #        polAcc=np.multiply(polAcc,gains) 
         
         obs = ephem.Observer() #create an observer at the array location
-        obs.long = lon
-        obs.lat = lat
-        obs.elevation = float(elev)
+        #obs.long = lon
+        #obs.lat = lat
+        obs.long = lon * (np.pi/180.)
+        obs.lat = lat * (np.pi/180.)
+        #TODO: I don't trust the elev value returned from ecef.ecef2geodetic()
+        #obs.elevation = float(elev)
+        obs.elevation = 0.
         obs.epoch = fDict['ts'].year
         
         obs.date = fDict['ts']
@@ -145,6 +149,7 @@ if __name__ == '__main__':
         src._ra = obs.sidereal_time()
         src._dec = obs.lat
         src.compute(obs)
+        print 'Observatory:', obs
         
         #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates pointing at zenith
         xyz = []

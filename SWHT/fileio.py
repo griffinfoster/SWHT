@@ -38,6 +38,18 @@ def parse(fn, fmt=None):
         #unknown data format, returns warning
         fDict['fmt'] = -1
     return fDict
+
+def writeCoeffPkl(fn, coeffs):
+    """Write SWHT image coefficients to file
+    fn: str, pickle filename
+    coeffs: 2D array of complex coefficients
+    """
+    coeffDict = {
+        'coeffs': coeffs
+    }
+    fh = open(fn, 'wb')
+    pkl.dump(coeffDict, fh)
+    fh.close()
     
 def writeImgPkl(fn, d, fDict, res=None, fttype=None, imtype=None):
     """Write an image cube to a pickle file

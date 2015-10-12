@@ -3,10 +3,15 @@ Functions for producing SWHT-based dirty images
 Based on T. Carozzi MATLAB code
 """
 
+#TODO: speedup spharm: multi-core, write function instead of scipy.special, use Ylm
+
 import numpy as np
 import scipy.special
 import math
 import time
+
+import Ylm
+import util
 
 cc = 299792458. #speed of light, m/s
 
@@ -56,7 +61,8 @@ def computeVislm(lmax, k, r, theta, phi, vis):
             #Compute visibility spherical harmonic coefficients according to SWHT, i.e. multiply visibility by spherical wave harmonics for each L&M and sum over all baselines.
             #Note that each non-zero baseline is effectively summed twice in the preceding formula. (In the MNRAS letter image the NZ baselines were only weighted once, i.e. their conjugate baselines were not summed.)
             #print l,m
-            spharmlm = np.repeat(np.conj(spharm(l, m, theta, phi)), vis.shape[1], axis=1) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: spharm is by far the slowest call
+            #spharmlm = np.repeat(np.conj(spharm(l, m, theta, phi)), vis.shape[1], axis=1) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: spharm is by far the slowest call
+            spharmlm = np.repeat(np.conj(Ylm.Ylm(l,m,phi,theta)), vis.shape[1], axis=1) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: spharm is by far the slowest call
             vislm[l, l+m] = (((2.*(k**2.))/np.pi) * np.sum(vis * sphBj(l, kr) * spharmlm, axis=0)[np.newaxis].T).flatten() #sum visibilites of same obs frequency
     return vislm
 
@@ -70,6 +76,9 @@ def computeblm(vislm, reverse=False):
         for m in np.arange(-1*l, l+1):
             if reverse: blm[l, l+m] = vislm[l, l+m] * (4.*np.pi*((-1.*1j)**float(l)))
             else: blm[l, l+m] = vislm[l, l+m] / (4.*np.pi*((-1.*1j)**float(l)))
+            #if reverse: blm[l, l+m] = vislm[l, l+m] / (4.*np.pi*((-1.*1j)**float(l)))
+            #else: blm[l, l+m] = vislm[l, l+m] * (4.*np.pi*((-1.*1j)**float(l)))
+            #TODO: unclear which should be multiply and which should be divide
     return blm
 
 def swhtImageCoeffs(vis, uvw, freqs, lmax):
@@ -84,26 +93,91 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax):
     if vis.ndim==1: vis = vis[np.newaxis].T
 
     if freqs.ndim==1: freqs = freqs[np.newaxis].T
-    k = freqs/cc #obs freq/c
+    k = 2. * np.pi * freqs/cc #obs freq/c
 
     #convert u,v,w to r,phi,theta
-    r = np.sqrt(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2.)[np.newaxis].T
-    phi = np.arctan2(uvw[:,1], uvw[:,0])[np.newaxis].T
-    theta = (np.pi/2.) - np.arctan2(uvw[:,2], np.sqrt(uvw[:,0]**2. + uvw[:,1]**2.))[np.newaxis].T
+    r, phi, theta = util.cart2sph(uvw[:,0], uvw[:,1], uvw[:,2])
+    #make arrays 2D
+    r = r[np.newaxis].T
+    phi = phi[np.newaxis].T
+    theta = (np.pi/2.) - theta[np.newaxis].T #make range -pi/2 to pi/2
 
     #compute the SWHT visibility coefficients
     vislm = computeVislm(lmax, k, r, theta, phi, vis)
     #compute the SWHT brightness coefficients
-    blm = computeblm(vislm)
+    #TODO: tobia uses the reverse of eq. 11 when computing image coeffs, mistake in paper?
+    blm = computeblm(vislm, reverse=True)
 
     print time.time() - start_time
 
     return blm
 
+#TODO: make2Dimage: FoV, test
+def make2Dimage(coeffs, dim=[64, 64]):
+    """Make a flat image of a single hemisphere from SWHT image coefficients
+    coeffs: SWHT brightness coefficients
+    dim: [int, int], number of pixels, note these are equivalent to the l,m coordinates in FT imaging
+    """
+    start_time = time.time()
+
+    #start from a regular Cartesian grid
+    xx,yy = np.meshgrid(np.linspace(-1., 1., num=dim[0]), np.linspace(-1., 1., num=dim[1]))
+    img = np.zeros(xx.shape, dtype='complex')
+    
+    #convert to polar positions
+    r = np.sqrt(xx**2. + yy**2.)
+    phi = np.arctan2(yy, xx)
+
+    #convert to unit sphere coordinates
+    #thetap = np.arccos(r) + (np.pi/2.) #zenith is at pi in spherical coordinates
+    thetap = np.arccos(r) - (np.pi/2.) #zenith is at pi in spherical coordinates
+    phip = phi + np.pi #azimuth range [0, 2pi]
+
+    lmax = coeffs.shape[0]
+    #TODO: slow for loops
+    for l in np.arange(lmax):
+        print l
+        for m in np.arange(-1*l, l+1):
+            #print l,m
+            #img += coeffs[l, l+m] * spharm(l, m, thetap, phip) #TODO: spharm is a slow call
+            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phip, thetap) #TODO: spharm is a slow call
+
+    print time.time() - start_time
+
+    return img
+
+#TODO: make3Dimage: resolution, masking, test
+def make3Dimage(coeffs, dim=[64, 64]):
+    """Make a 3D sphere from SWHT image coefficients
+    coeffs: SWHT brightness coefficients
+    dim: [int, int] number of steps in theta and phi
+    """
+
+    #equal-spaced sample of theta and phi, not ideal as the pixel areas are not equal across the sphere
+    #[theta, phi] = np.meshgrid(np.linspace(0, 2.*np.pi, num=dim[0]), np.linspace(0, np.pi, num=dim[1]))
+    [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=dim[0], endpoint=False), np.linspace(0, 2.*np.pi, num=dim[1], endpoint=False))
+    img = np.zeros(theta.shape, dtype='complex')
+
+    lmax = coeffs.shape[0]
+    #TODO: slow for loops
+    for l in np.arange(lmax):
+        print l
+        for m in np.arange(-1*l, l+1):
+            #print l,m
+            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi, theta) #TODO: spharm is a slow call
+            #img += coeffs[l, l+m] * spharm(l, m, theta, phi) #TODO: spharm is a slow call
+
+    return img
+
 if __name__ == "__main__":
     print 'Running test cases'
 
     import matplotlib.pyplot as plt
+
+    #theta, phi = np.meshgrid(np.linspace(0, np.pi, 10), np.linspace(0,2.*np.pi, 10))
+    #Y = spharm(l=1, m=-1, theta=theta, phi=phi)
+    #print Y
+    #exit()
 
     jl0 = sphBj(0, np.linspace(0, 50, num=256))
     jl1 = sphBj(1, np.linspace(0, 50, num=256))
@@ -115,14 +189,14 @@ if __name__ == "__main__":
     theta, phi = np.meshgrid(np.linspace(0, np.pi, 100), np.linspace(0,2.*np.pi, 100))
     #theta, phi = np.meshgrid(np.linspace(-1.*np.pi/2., np.pi/2., 100), np.linspace(0,2.*np.pi, 100))
 
-    l = 2
+    l = 1
     m = -1
     #Yp = scipy.special.sph_harm(n=l, m=m, theta=phi, phi=theta)
     Y = spharm(l=l, m=m, theta=theta, phi=phi)
     #Yp = scipy.special.sph_harm(n=l, m=m, theta=phi, phi=theta)
     #Yp = 0.5 * np.sqrt(3./np.pi) * np.cos(theta) #1,0
     #Yp = -0.5 * np.sqrt(3./(2.*np.pi)) * np.sin(theta) * np.exp(phi * 1j) #1,1
-    #Yp = 0.5 * np.sqrt(3./(2.*np.pi)) * np.sin(theta) * np.exp(phi * -1j) #1,-1
+    Yp = 0.5 * np.sqrt(3./(2.*np.pi)) * np.sin(theta) * np.exp(phi * -1j) #1,-1
     print np.allclose(Y, Yp, atol=1e-08)
 
     #plt.subplot(231)
