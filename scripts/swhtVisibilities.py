@@ -3,10 +3,7 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: test LBA
-#TODO: test HBA
 #TODO: test PAPER
-
 #TODO: how to handle polarization
 #TODO: how does weighting work?
 #TODO: Multiple frequencies
@@ -275,7 +272,8 @@ if __name__ == '__main__':
 
     img = SWHT.swht.make3Dimage(iImgCoeffs, dim=[128, 128])
     img = np.abs(img)
-    [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=128, endpoint=False), np.linspace(0, 2.*np.pi, num=128, endpoint=False))
+    #[theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=128, endpoint=False), np.linspace(0, 2.*np.pi, num=128, endpoint=False))
+    [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=128, endpoint=True), np.linspace(0, 2.*np.pi, num=128, endpoint=True))
     #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
@@ -292,7 +290,8 @@ if __name__ == '__main__':
     scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
     C = scalarMap.to_rgba(img)
 
-    surf = ax.plot_surface(X, -1.*Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+    #surf = ax.plot_surface(X, -1.*Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+    surf = ax.plot_surface(X, Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
     plt.show()
 
     ##save complex image to pickle file

@@ -2,6 +2,9 @@
 Fourier Transform Functions
 """
 
+#TODO: tests
+#TODO: still need phsCenterSrc, eq2top_m, get_baseline, gen_uvw, xyz2uvw? reference aipy
+
 import numpy as np
 import ephem
 

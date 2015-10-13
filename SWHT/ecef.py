@@ -1,6 +1,7 @@
 #ecef.py
 #https://code.google.com/p/pysatel/source/browse/trunk/coord.py?r=22
 
+#TODO: license
 #TODO: this comes up with approximately correct solutions when AntennaField values checked against AntennaArray values, but the alt doesn't make much sense
 
 from math import pow, degrees, radians

@@ -99,8 +99,11 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax):
     r, phi, theta = util.cart2sph(uvw[:,0], uvw[:,1], uvw[:,2])
     #make arrays 2D
     r = r[np.newaxis].T
-    phi = phi[np.newaxis].T
-    theta = (np.pi/2.) - theta[np.newaxis].T #make range -pi/2 to pi/2
+    phi = np.pi - phi[np.newaxis].T #make range -pi to pi
+    theta = theta[np.newaxis].T
+    #r = np.sqrt(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2.)[np.newaxis].T
+    #phi = np.arctan2(uvw[:,1], uvw[:,0])[np.newaxis].T
+    #theta = (np.pi/2.) - np.arctan2(uvw[:,2], np.sqrt(uvw[:,0]**2. + uvw[:,1]**2.))[np.newaxis].T #make range -pi/2 to pi/2
 
     #compute the SWHT visibility coefficients
     vislm = computeVislm(lmax, k, r, theta, phi, vis)

@@ -1,7 +1,6 @@
-"""Utility functions
 """
-
-#TODO: make sure sph2cart and cart2sph are consistant with each other
+Utility functions
+"""
 
 def sph2cart(theta, phi, r=None):
     """Convert spherical coordinates to 3D cartesian
@@ -10,12 +9,15 @@ def sph2cart(theta, phi, r=None):
     phi: azimuthial angle, 0 <= phi <= 2pi
     r: radius, 0 =< r < inf
     returns X, Y, Z arrays of the same shape as theta, phi, r
+    see: http://mathworld.wolfram.com/SphericalCoordinates.html
     """
     if r is None: r = np.ones_like(theta) #if no r, assume unit sphere radius
 
-    X = r * np.sin(theta) * np.cos(phi)
-    Y = r * np.sin(theta) * np.sin(phi)
-    Z = r * np.cos(theta)
+    #elevation is pi/2 - theta
+    #azimuth is ranged (-pi, pi]
+    X = np.cos((np.pi/2.)-theta) * np.cos(phi-np.pi)
+    Y = np.cos((np.pi/2.)-theta) * np.sin(phi-np.pi)
+    Z = np.sin((np.pi/2.)-theta)
 
     return X, Y, Z
 
@@ -25,10 +27,11 @@ def cart2sph(X, Y, Z):
     returns r: radius, 0 =< r < inf
             phi: azimuthial angle, 0 <= phi <= 2pi
             theta: colatitude/elevation angle, 0(north pole) =< theta =< pi (south pole)
+    see: http://mathworld.wolfram.com/SphericalCoordinates.html
     """
     r = np.sqrt(X**2. + Y**2. + Z**2.)
-    phi = np.arctan2(Y, X)
-    theta = np.arctan2(Z, np.sqrt(X**2. + Y**2.))
+    phi = np.arctan2(Y, X) + np.pi #convert azimuth (-pi, pi] to phi (0, 2pi]
+    theta = np.pi/2. - np.arctan2(Z, np.sqrt(X**2. + Y**2.)) #convert elevation [pi/2, -pi/2] to theta [0, pi]
 
     return r, phi, theta
 
@@ -39,6 +42,24 @@ if __name__ == '__main__':
 
     [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=128, endpoint=False), np.linspace(0, 2.*np.pi, num=128, endpoint=False))
     X, Y, Z = sph2cart(theta, phi)
-    r0, theta0, phi0 = cart2sph(X, Y, Z)
+    r0, phi0, theta0 = cart2sph(X, Y, Z)
+
+    print np.allclose(theta, theta0)
+    print np.allclose(phi, phi0)
+
+    from matplotlib import pyplot as plt
+    plt.subplot(221)
+    plt.imshow(theta, interpolation='nearest')
+    plt.colorbar()
+    plt.subplot(222)
+    plt.imshow(phi, interpolation='nearest')
+    plt.colorbar()
+    plt.subplot(223)
+    plt.imshow(theta0, interpolation='nearest')
+    plt.colorbar()
+    plt.subplot(224)
+    plt.imshow(phi0, interpolation='nearest')
+    plt.colorbar()
+    plt.show()
 
     print 'Made it through without any errors.'
