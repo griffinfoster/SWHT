@@ -3,7 +3,6 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: test PAPER
 #TODO: how to handle polarization
 #TODO: how does weighting work?
 #TODO: Multiple frequencies
@@ -145,9 +144,7 @@ if __name__ == '__main__':
         obs = ephem.Observer() #create an observer at the array location
         obs.long = lon * (np.pi/180.)
         obs.lat = lat * (np.pi/180.)
-        #TODO: I don't trust the elev value returned from ecef.ecef2geodetic()
-        #obs.elevation = float(elev)
-        obs.elevation = 0.
+        obs.elevation = float(elev)
         obs.epoch = fDict['ts']
         obs.date = fDict['ts']
         print 'Observatory:', obs
@@ -195,37 +192,38 @@ if __name__ == '__main__':
         #plt.plot(uvw[:,0], uvw[:,1], '.')
         #plt.show()
 
-    #TODO: MS
-    #elif fDict['fmt']=='ms': #MS-based visibilities
+    #TODO: MS need to rotated to accomidate multiple snapshots
+    elif fDict['fmt']=='ms': #MS-based visibilities
+        decomp = True
 
-    #    fDict['sb'] = int(opts.subband)
+        fDict['sb'] = int(opts.subband)
 
-    #    MS = pt.table(visFile, readonly=True)
-    #    data_column = opts.column.upper()
-    #    uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
-    #    vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
-    #    #print vis.shape
-    #    #print uvw.shape
-    #    vis = vis[:,fDict['sb'],:] #select a single subband
-    #    MS.close()
+        MS = pt.table(visFile, readonly=True)
+        data_column = opts.column.upper()
+        uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
+        vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
+        vis = vis[:,fDict['sb'],:] #select a single subband
+        MS.close()
 
-    #    #freq information, convert uvw coordinates
-    #    SW = pt.table(visFile + '/SPECTRAL_WINDOW')
-    #    freqs = SW.col('CHAN_FREQ').getcol() # [1, nchan]
-    #    uvw = uvw*freqs[0,fDict['sb']]/cc #convert (u,v,w) from metres to wavelengths
-    #    print 'SUBBAND: %i (%f MHz)'%(fDict['sb'], freqs[0,fDict['sb']]/1e6)
-    #    SW.close()
+        #freq information, convert uvw coordinates
+        SW = pt.table(visFile + '/SPECTRAL_WINDOW')
+        freqs = SW.col('CHAN_FREQ').getcol() # [1, nchan]
+        uvw = uvw*freqs[0,fDict['sb']]/cc #convert (u,v,w) from metres to wavelengths
+        print 'SUBBAND: %i (%f MHz)'%(fDict['sb'], freqs[0,fDict['sb']]/1e6)
+        freq = freqs[0,fDict['sb']]
+        SW.close()
 
-    #    ##uv coverage plot
-    #    #plt.plot(uvw[:,0], uvw[:,1], '.')
-    #    #plt.show()
+        #split up polarizations
+        xxVis = vis[:,0] 
+        xyVis = vis[:,1]
+        yxVis = vis[:,2]
+        yyVis = vis[:,3]
 
-    #    #split up polarizations
-    #    xxVis = vis[:,0] 
-    #    xyVis = vis[:,1]
-    #    yxVis = vis[:,2]
-    #    yyVis = vis[:,3]
-    if fDict['fmt']=='pkl':
+        ##uv coverage plot
+        #plt.plot(uvw[:,0], uvw[:,1], '.')
+        #plt.show()
+
+    elif fDict['fmt']=='pkl':
         print 'Loading Image Coefficients file:', visFile
         coeffDict = SWHT.fileio.readCoeffPkl(visFile)
         iImgCoeffs = coeffDict['coeffs']
@@ -268,24 +266,21 @@ if __name__ == '__main__':
         print 'Generating 3D Image with %i steps in theta and %i steps in phi'%(opts.pixels, opts.pixels)
         img, phi, theta = SWHT.swht.make3Dimage(iImgCoeffs, dim=[opts.pixels, opts.pixels])
         img = np.abs(img)
-        #[theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=opts.pixels, endpoint=True), np.linspace(0, 2.*np.pi, num=opts.pixels, endpoint=True))
+        #X = np.cos(theta-(np.pi/2.)) * np.cos(phi)
+        #Y = np.cos(theta-(np.pi/2.)) * np.sin(phi)
+        #Z = np.sin(theta-(np.pi/2.))
+        X, Y, Z = SWHT.util.sph2cart(theta, phi)
+
         #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
         from mpl_toolkits.mplot3d import Axes3D
         from matplotlib import cm
         from matplotlib.colors import Normalize
         fig = plt.figure()
         ax = fig.gca(projection='3d')
-        #X = np.cos(theta-(np.pi/2.)) * np.cos(phi)
-        #Y = np.cos(theta-(np.pi/2.)) * np.sin(phi)
-        #Z = np.sin(theta-(np.pi/2.))
-        X, Y, Z = SWHT.util.sph2cart(theta, phi)
-
         imin = img.min()
         imax = img.max()
         scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
         C = scalarMap.to_rgba(img)
-
-        #surf = ax.plot_surface(X, -1.*Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
         surf = ax.plot_surface(X, Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
@@ -299,8 +294,6 @@ if __name__ == '__main__':
     ##save complex image to pickle file
     #if opts.pkl is None: outPklFn = 'tempImage.pkl'
     #else: outPklFn = opts.pkl
-    #if opts.dft: fttype = 'dft'
-    #else: fttype = opts.conv
     #print 'Writing image to file %s ...'%outPklFn,
     #SWHT.fileio.writeImgPkl(outPklFn, np.array([xxIm,xyIm,yxIm,yyIm]), fDict, res=res, fttype=fttype, imtype='complex')
     #print 'done'
