@@ -28,7 +28,7 @@ cc = 299792458.0 #speed of light, m/s
 if __name__ == '__main__':
     from optparse import OptionParser
     o = OptionParser()
-    o.set_usage('%prog [options] ACC/XST/MS FILE')
+    o.set_usage('%prog [options] ACC/XST/MS/PKL FILE')
     o.set_description(__doc__)
     o.add_option('--station', dest='station', default=None,
         help = 'LOFAR ONLY: station name, e.g. SE607, if this is used then the ant_field and ant_array options are not required, default: None')
@@ -42,16 +42,12 @@ if __name__ == '__main__':
         help = 'LOFAR ONLY: Station RCU Mode, usually 3,5,6,7, for XST it will override filename metadata default: 3(LBA High)')
     o.add_option('-s', '--subband', dest='subband', default=0, type='int',
         help = 'Select which subband(s) to image, for ACC and MS it will select, for XST it will override filename metadata, default:0')
-    #o.add_option('-p', '--pixels', dest='pixels', default=64, type='int',
-    #    help = 'Width of image in pixels, default: 64')
+    o.add_option('-p', '--pixels', dest='pixels', default=64, type='int',
+        help = 'Width of 2D image in pixels, or number of steps in 3D image, default: 64')
     o.add_option('-C', '--cal', dest='calfile', default=None,
         help = 'LOFAR ONLY: Apply a calibration soultion file to the data.')
     #o.add_option('-S', '--save', dest='savefig', default=None,
     #    help = 'Save the figure using this name, type is determined by extension')
-    #o.add_option('--conv', dest='conv', default='fast',
-    #    help = 'If using FFT, choose a convolution function: fast(nearest neighbor), rectangle, gaussian, prolate spheroid. default:fast')
-    #o.add_option('--dft', dest='dft', action='store_true',
-    #    help = 'Form image with a direct FT instead of an FFT')
     o.add_option('--nodisplay', dest='nodisplay', action='store_true',
         help = 'Do not display the generated image')
     #o.add_option('--pkl', dest='pkl', default=None,
@@ -63,7 +59,7 @@ if __name__ == '__main__':
     o.add_option('--override', dest='override', action='store_true',
         help = 'LOFAR XST ONLY: override filename metadata for RCU, integration length, and subband')
     o.add_option('--autos', dest='autos', action='store_true',
-        help = 'Include the auto-correlation in the image, by default they are blanked')
+        help = 'Drop the auto-correlation in the image, by default they are included')
     #o.add_option('--weight', dest='weighting', default='natural',
     #    help = 'Weighting mode, natural (default), uniform')
     #o.add_option('--fov', dest='fov', default=180., type='float',
@@ -72,8 +68,8 @@ if __name__ == '__main__':
         help = 'Maximum l spherical harmonic quantal number, rule-of-thumb: used number of antenna elements, default: 32')
     o.add_option('--ocoeffs', dest='ocoeffs', default=None,
         help = 'Save output image coefficients to a pickle file using this name (include .pkl extention), default: tempCoeffs.pkl')
-    #o.add_option('--icoeffs', dest='icoeffs', default=None,
-    #    help = 'Load an image coefficients pickle file and generate an image')
+    o.add_option('-I', '--image', dest='imageMode', default='2D',
+        help='Imaging mode: 2D (hemisphere flattened), 3D, coeff (coefficients) default: 2D')
     opts, args = o.parse_args(sys.argv[1:])
 
     visFile = args[0]
@@ -81,6 +77,7 @@ if __name__ == '__main__':
 
     #Pull out the visibility data in a (u,v,w) format
     if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
+        decomp = True
         if fDict['fmt']=='acc' or opts.override:
             fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
             fDict['sb'] = int(opts.subband)
@@ -228,71 +225,76 @@ if __name__ == '__main__':
     #    xyVis = vis[:,1]
     #    yxVis = vis[:,2]
     #    yyVis = vis[:,3]
-
+    if fDict['fmt']=='pkl':
+        print 'Loading Image Coefficients file:', visFile
+        coeffDict = SWHT.fileio.readCoeffPkl(visFile)
+        iImgCoeffs = coeffDict['coeffs']
+        decomp = False
     else:
         print 'ERROR: unknown data format, exiting'
         exit()
     
-    #remove auto-correlations
-    print 'AUTO-CORRELATIONS:', opts.autos
-    if not opts.autos:
-        autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
-        xxVis[autoIdx] = 0.
-        xyVis[autoIdx] = 0.
-        yxVis[autoIdx] = 0.
-        yyVis[autoIdx] = 0.
+    #decompose the input visibilities into spherical harmonics visibility coefficeints
+    if decomp:
+        #remove auto-correlations, by default keep them in as they help with the decomposition
+        print 'AUTO-CORRELATIONS:', opts.autos
+        if opts.autos:
+            autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
+            xxVis[autoIdx] = 0.
+            xyVis[autoIdx] = 0.
+            yxVis[autoIdx] = 0.
+            yyVis[autoIdx] = 0.
 
-    #prepare for SWHT
-    print 'Performing Spherical Wave Harmonic Transform'
-    print 'LMAX:', opts.lmax
-    #TODO: only doing total intensity right now
-    iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVis+yyVis, uvw, np.array([freq]), lmax=opts.lmax)
+        #prepare for SWHT
+        print 'Performing Spherical Wave Harmonic Transform'
+        print 'LMAX:', opts.lmax
+        #TODO: only doing total intensity right now
+        iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVis+yyVis, uvw, np.array([freq]), lmax=opts.lmax)
+        #iImgCoeffs = np.ones((7, 13, 1))
 
-    #save image coefficients to file
-    if opts.ocoeffs is None: outCoeffPklFn = 'tempCoeffs.pkl'
-    else: outCoeffPklFn = opts.pkl
-    SWHT.fileio.writeCoeffPkl(outCoeffPklFn, iImgCoeffs)
+        #save image coefficients to file
+        if opts.ocoeffs is None: outCoeffPklFn = 'tempCoeffs.pkl'
+        else: outCoeffPklFn = opts.pkl
+        SWHT.fileio.writeCoeffPkl(outCoeffPklFn, iImgCoeffs)
 
-    #iImgCoeffs = np.ones((7, 13, 1))
+    #Imaging
+    if opts.imageMode.startswith('2'): #Make a 2D hemispheric image
+        print 'Generating 2D Hemisphere Image of size (%i, %i)'%(opts.pixels, opts.pixels)
+        img = SWHT.swht.make2Dimage(iImgCoeffs, dim=[opts.pixels, opts.pixels])
+        plt.imshow(np.abs(img), interpolation='nearest')
+        plt.colorbar()
 
-    #print iImgCoeffs.shape
-    #print iImgCoeffs[:,:,0]
-    #temp = np.hstack((iImgCoeffs[:,:,0].real, iImgCoeffs.imag[:,:,0]))
-    #temp[0,0] = 0.
-    #plt.imshow(temp, interpolation='nearest')
-    #plt.colorbar()
-    #plt.show()
-    #exit()
+    elif opts.imageMode.startswith('3'): #Make a 3D equal stepped image
+        print 'Generating 3D Image with %i steps in theta and %i steps in phi'%(opts.pixels, opts.pixels)
+        img, phi, theta = SWHT.swht.make3Dimage(iImgCoeffs, dim=[opts.pixels, opts.pixels])
+        img = np.abs(img)
+        #[theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=opts.pixels, endpoint=True), np.linspace(0, 2.*np.pi, num=opts.pixels, endpoint=True))
+        #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
+        from mpl_toolkits.mplot3d import Axes3D
+        from matplotlib import cm
+        from matplotlib.colors import Normalize
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        #X = np.cos(theta-(np.pi/2.)) * np.cos(phi)
+        #Y = np.cos(theta-(np.pi/2.)) * np.sin(phi)
+        #Z = np.sin(theta-(np.pi/2.))
+        X, Y, Z = SWHT.util.sph2cart(theta, phi)
 
-    #TODO: make image
-    #img = SWHT.swht.make2Dimage(iImgCoeffs, dim=[64, 64])
-    #plt.imshow(np.abs(img), interpolation='nearest')
-    #plt.colorbar()
-    #plt.show()
+        imin = img.min()
+        imax = img.max()
+        scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
+        C = scalarMap.to_rgba(img)
 
-    img = SWHT.swht.make3Dimage(iImgCoeffs, dim=[128, 128])
-    img = np.abs(img)
-    #[theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=128, endpoint=False), np.linspace(0, 2.*np.pi, num=128, endpoint=False))
-    [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=128, endpoint=True), np.linspace(0, 2.*np.pi, num=128, endpoint=True))
-    #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
-    from mpl_toolkits.mplot3d import Axes3D
-    from matplotlib import cm
-    from matplotlib.colors import Normalize
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    #X = np.cos(theta-(np.pi/2.)) * np.cos(phi)
-    #Y = np.cos(theta-(np.pi/2.)) * np.sin(phi)
-    #Z = np.sin(theta-(np.pi/2.))
-    X, Y, Z = SWHT.util.sph2cart(theta, phi)
-
-    imin = img.min()
-    imax = img.max()
-    scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
-    C = scalarMap.to_rgba(img)
-
-    #surf = ax.plot_surface(X, -1.*Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
-    surf = ax.plot_surface(X, Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
-    plt.show()
+        #surf = ax.plot_surface(X, -1.*Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+        surf = ax.plot_surface(X, Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+    
+    elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
+        coeffImg = np.hstack((iImgCoeffs[:,:,0].real, iImgCoeffs.imag[:,:,0]))
+        coeffImg[0,0] = 0.
+        plt.imshow(coeffImg, interpolation='nearest')
+        plt.colorbar()
+    
+    if not opts.nodisplay: plt.show()
 
     ##save complex image to pickle file
     #if opts.pkl is None: outPklFn = 'tempImage.pkl'

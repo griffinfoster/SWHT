@@ -3,7 +3,6 @@ functions to read/write data for the imagers
 """
 
 #TODO: hdf5 wrappers for visibilities and images
-#TODO: read/write coeff pickles
 #TODO: healpix reader/writer
 
 import cPickle as pkl
@@ -35,6 +34,8 @@ def parse(fn, fmt=None):
                 fDict['elem'] = metaData[6][2:]
             else:
                 fDict['elem'] = None
+    elif fn.lower().endswith('.pkl') or fmt=='pkl': #the file is a set of SWHT image coefficients
+        fDict['fmt'] = 'pkl'
     else:
         #unknown data format, returns warning
         fDict['fmt'] = -1
@@ -52,6 +53,13 @@ def writeCoeffPkl(fn, coeffs):
     pkl.dump(coeffDict, fh)
     fh.close()
     
+def readCoeffPkl(fn):
+    """Read SWHT image coefficients from a pickle file, see writeCoeffPkl() for contents"""
+    fh = open(fn,'rb')
+    coeffDict = pkl.load(fh)
+    fh.close()
+    return coeffDict
+
 def writeImgPkl(fn, d, fDict, res=None, fttype=None, imtype=None):
     """Write an image cube to a pickle file
     fn: str, pickle filename

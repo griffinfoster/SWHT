@@ -4,11 +4,13 @@ Based on T. Carozzi MATLAB code
 """
 
 #TODO: speedup spharm: multi-core, write function instead of scipy.special, use Ylm
+#TODO: tests
 
 import numpy as np
 import scipy.special
 import math
 import time
+import sys
 
 import Ylm
 import util
@@ -51,19 +53,22 @@ def computeVislm(lmax, k, r, theta, phi, vis):
 
     returns: [lmax+1, 2*lmax+1, nfreq] array of coefficients, only partially filled, see for loops in this function
     """
-    vis *= 2. #Treat the conjugate baslines as doubling the nonconjugate visibilities
+    #vis *= 2. #Treat the conjugate baslines as doubling the nonconjugate visibilities
 
     kr = np.dot(r, k.T) #compute the radii in wavelengths for each visibility sample
     vislm = np.zeros((lmax+1, 2*lmax+1, vis.shape[1]), dtype='complex')
+
+    print 'L:',
     for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
-        print l
+        print l,
+        sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
             #Compute visibility spherical harmonic coefficients according to SWHT, i.e. multiply visibility by spherical wave harmonics for each L&M and sum over all baselines.
             #Note that each non-zero baseline is effectively summed twice in the preceding formula. (In the MNRAS letter image the NZ baselines were only weighted once, i.e. their conjugate baselines were not summed.)
-            #print l,m
-            #spharmlm = np.repeat(np.conj(spharm(l, m, theta, phi)), vis.shape[1], axis=1) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: spharm is by far the slowest call
             spharmlm = np.repeat(np.conj(Ylm.Ylm(l,m,phi,theta)), vis.shape[1], axis=1) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: spharm is by far the slowest call
             vislm[l, l+m] = (((2.*(k**2.))/np.pi) * np.sum(vis * sphBj(l, kr) * spharmlm, axis=0)[np.newaxis].T).flatten() #sum visibilites of same obs frequency
+    print 'done'
+
     return vislm
 
 def computeblm(vislm, reverse=False):
@@ -109,13 +114,14 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax):
     vislm = computeVislm(lmax, k, r, theta, phi, vis)
     #compute the SWHT brightness coefficients
     #TODO: tobia uses the reverse of eq. 11 when computing image coeffs, mistake in paper?
-    blm = computeblm(vislm, reverse=True)
+    #blm = computeblm(vislm, reverse=True)
+    blm = computeblm(vislm, reverse=False)
 
     print time.time() - start_time
 
     return blm
 
-#TODO: make2Dimage: FoV, test
+#TODO: make2Dimage: FoV
 def make2Dimage(coeffs, dim=[64, 64]):
     """Make a flat image of a single hemisphere from SWHT image coefficients
     coeffs: SWHT brightness coefficients
@@ -130,47 +136,53 @@ def make2Dimage(coeffs, dim=[64, 64]):
     #convert to polar positions
     r = np.sqrt(xx**2. + yy**2.)
     phi = np.arctan2(yy, xx)
+    #zero out undefiined regions of the image where r>0
+    #numpy is super cunty and makes it fucking hard to do simple things, so the next few lines are bullshit that should only take 2 lines
+    idx = np.argwhere(r.flatten()>1)
+    rflat = r.flatten()
+    phiflat = phi.flatten()
+    rflat[idx] = 0.
+    phiflat[idx] = 0.
+    r = np.reshape(rflat, r.shape)
+    phi = np.reshape(phiflat, phi.shape)
 
     #convert to unit sphere coordinates
-    #thetap = np.arccos(r) + (np.pi/2.) #zenith is at pi in spherical coordinates
-    thetap = np.arccos(r) - (np.pi/2.) #zenith is at pi in spherical coordinates
+    thetap = np.pi/2 - np.arccos(r) #zenith is at pi in spherical coordinates
     phip = phi + np.pi #azimuth range [0, 2pi]
 
     lmax = coeffs.shape[0]
-    #TODO: slow for loops
+    print 'L:',
     for l in np.arange(lmax):
-        print l
+        print l,
+        sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
-            #print l,m
-            #img += coeffs[l, l+m] * spharm(l, m, thetap, phip) #TODO: spharm is a slow call
-            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phip, thetap) #TODO: spharm is a slow call
+            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phip, thetap) #TODO: a slow call
+    print 'done'
 
     print time.time() - start_time
 
     return img
 
-#TODO: make3Dimage: resolution, masking, test
+#TODO: make3Dimage: masking
 def make3Dimage(coeffs, dim=[64, 64]):
     """Make a 3D sphere from SWHT image coefficients
     coeffs: SWHT brightness coefficients
     dim: [int, int] number of steps in theta and phi
     """
-
-    #equal-spaced sample of theta and phi, not ideal as the pixel areas are not equal across the sphere
-    #[theta, phi] = np.meshgrid(np.linspace(0, 2.*np.pi, num=dim[0]), np.linspace(0, np.pi, num=dim[1]))
-    [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=dim[0], endpoint=False), np.linspace(0, 2.*np.pi, num=dim[1], endpoint=False))
+    #equal-spaced sample of theta and phi, not ideal as equal pixel (i.e. HEALPIX)
+    [theta, phi] = np.meshgrid(np.linspace(0, np.pi, num=dim[0], endpoint=True), np.linspace(0, 2.*np.pi, num=dim[1], endpoint=True))
     img = np.zeros(theta.shape, dtype='complex')
 
     lmax = coeffs.shape[0]
-    #TODO: slow for loops
+    print 'L:',
     for l in np.arange(lmax):
-        print l
+        print l,
+        sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
-            #print l,m
-            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi, theta) #TODO: spharm is a slow call
-            #img += coeffs[l, l+m] * spharm(l, m, theta, phi) #TODO: spharm is a slow call
+            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi, theta) #TODO: a slow call
+    print 'done'
 
-    return img
+    return img, phi, theta
 
 if __name__ == "__main__":
     print 'Running test cases'
