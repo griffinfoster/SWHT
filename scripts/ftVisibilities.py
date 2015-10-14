@@ -78,7 +78,6 @@ if __name__ == '__main__':
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
 
         #longitude and latitude of array
-        #TODO: this is the only point in which antArrays is used, replace with converting the station ITRF X,Y,Z< position to geodetic, currently using ecef.py but the results are only approximately correct
         #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
         arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
         lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
@@ -135,21 +134,17 @@ if __name__ == '__main__':
         #        polAcc=np.multiply(polAcc,gains) 
         
         obs = ephem.Observer() #create an observer at the array location
-        #obs.long = lon
-        #obs.lat = lat
         obs.long = lon * (np.pi/180.)
         obs.lat = lat * (np.pi/180.)
-        #TODO: I don't trust the elev value returned from ecef.ecef2geodetic()
-        #obs.elevation = float(elev)
-        obs.elevation = 0.
-        obs.epoch = fDict['ts'].year
-        
+        obs.elevation = float(elev)
+        obs.epoch = fDict['ts']
         obs.date = fDict['ts']
+        print 'Observatory:', obs
+
         src = ephem.FixedBody() #create a source at zenith
         src._ra = obs.sidereal_time()
         src._dec = obs.lat
         src.compute(obs)
-        print 'Observatory:', obs
         
         #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates pointing at zenith
         xyz = []
@@ -157,16 +152,15 @@ if __name__ == '__main__':
         xyz = np.array(xyz)
         uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq])).reshape(nants*nants,3)
 
-        ##uv coverage plot
-        #plt.plot(uvw[:,0], uvw[:,1], '.')
-        #plt.show()
-
         #split up polarizations
         xxVis = corrMatrix[0::2,0::2].reshape(nants*nants)
         xyVis = corrMatrix[0::2,1::2].reshape(nants*nants)
         yxVis = corrMatrix[1::2,0::2].reshape(nants*nants)
         yyVis = corrMatrix[1::2,1::2].reshape(nants*nants)
 
+        #uv coverage plot
+        #plt.plot(uvw[:,0], uvw[:,1], '.')
+        #plt.show()
 
     elif fDict['fmt']=='ms': #MS-based visibilities
 
@@ -176,8 +170,6 @@ if __name__ == '__main__':
         data_column = opts.column.upper()
         uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
         vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
-        #print vis.shape
-        #print uvw.shape
         vis = vis[:,fDict['sb'],:] #select a single subband
         MS.close()
 
@@ -188,15 +180,15 @@ if __name__ == '__main__':
         print 'SUBBAND: %i (%f MHz)'%(fDict['sb'], freqs[0,fDict['sb']]/1e6)
         SW.close()
 
-        ##uv coverage plot
-        #plt.plot(uvw[:,0], uvw[:,1], '.')
-        #plt.show()
-
         #split up polarizations
         xxVis = vis[:,0] 
         xyVis = vis[:,1]
         yxVis = vis[:,2]
         yyVis = vis[:,3]
+
+        ##uv coverage plot
+        #plt.plot(uvw[:,0], uvw[:,1], '.')
+        #plt.show()
 
     else:
         print 'ERROR: unknown data format, exiting'

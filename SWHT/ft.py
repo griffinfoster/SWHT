@@ -1,13 +1,13 @@
 """
 Fourier Transform Functions
+
+functions phsCenterSrc, eq2top_m, get_baseline, gen_uvw, xyz2uvw are taken from AIPY (https://github.com/AaronParsons/aipy), used to compute (U,V,W) from ITRF (X,Y,Z)
 """
 
-#TODO: tests
-#TODO: still need phsCenterSrc, eq2top_m, get_baseline, gen_uvw, xyz2uvw? reference aipy
+#TODO: replace ephem with astropy.coordinates
 
 import numpy as np
 import ephem
-
 import sys,os
 import struct
 import time
@@ -143,9 +143,8 @@ def fftImage(d, uvw, px, res, mask=False, conv='fast', wgt='natural'):
     gridWgt = np.ones((px[0], px[1]), dtype=float) #array for the grid weights
 
     #u,v grid spacing based on the number of pixels and resolution of the desired image
-    #TODO: why is this pi/2 here?
-    deltau = (np.pi/2.)*1./(px[0]*res)
-    deltav = (np.pi/2.)*1./(px[1]*res)
+    deltau = (np.pi/2.) * 1./(px[0]*res)
+    deltav = (np.pi/2.) * 1./(px[1]*res)
 
     if conv.startswith('fast'):
         for did,dd in enumerate(d):
@@ -201,4 +200,12 @@ def convRect(ures, vres):
 def convProlate(ures, vres, aa=1., cc=1.):
     """Return a prolate spheroid function which returns the function z(uu, vv) = sqrt( cc**2. * ( 1. - (((uu*ures)**2. + (vv*vres)**2.)/aa**2.))), c > a for a prolate function"""
     return lambda uu,vv: np.sqrt( cc**2. * (1. - (((uu/ures)**2. + (vv/vres)**2.)/aa**2.)))
+
+if __name__ == '__main__':
+    print 'Running test cases'
+
+    #TODO: add tests
+
+    print 'Made it through without any errors.'
+
 

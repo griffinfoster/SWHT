@@ -86,7 +86,6 @@ if __name__ == '__main__':
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
 
         #longitude and latitude of array
-        #TODO: this is the only point in which antArrays is used, replace with converting the station ITRF X,Y,Z< position to geodetic, currently using ecef.py but the results are only approximately correct
         #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
         arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
         lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
