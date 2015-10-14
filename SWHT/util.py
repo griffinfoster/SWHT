@@ -2,6 +2,8 @@
 Utility functions
 """
 
+import numpy as np
+
 def sph2cart(theta, phi, r=None):
     """Convert spherical coordinates to 3D cartesian
     theta, phi, and r must be the same size and shape, if no r is provided then unit sphere coordinates are assumed (r=1)

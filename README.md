@@ -1,8 +1,8 @@
 SWHT
 ===
 
-Created: 30.09.15 
-Last Modified: 09.10.15  
+Created: 30.09.15  
+Last Modified: 14.10.15  
 Contact: griffin.foster@gmail.com  
 
 A python package for generating radio interferometry images from LOFAR station ACC and XST files, and from widefield, low-frequency measurement sets (e.g. PAPER) using a standard Fourier Transform and with a Spherical Wave Harmonic Transform ([Imaging on a Sphere with Interferometers: the Spherical Wave Harmonic Transform](http://arxiv.org/abs/1504.04485)).
@@ -11,6 +11,7 @@ A python package for generating radio interferometry images from LOFAR station A
 
 * matplotlib 
 * numpy 
+* scipy
 * pyrap 
 * ephem 
 
