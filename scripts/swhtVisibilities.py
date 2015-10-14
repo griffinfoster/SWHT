@@ -11,6 +11,7 @@ Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield M
 #TODO: replace ephem with astropy.coordinates
 #TODO: clean-up options
 #TODO: option: image from coefficients
+#TODO: currently taking the entire correlation matrix, but only really need to take half
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     o.add_option('-F', '--ant_field', dest='ant_field', default=None,
         help = 'LOFAR ONLY: AntennaField.conf file for the LOFAR station of the ACC files, default: None')
     o.add_option('-A', '--ant_array', dest='ant_array', default=None,
-        help = 'LOFAR ONLY: AntennaArray.conf file for the LOFAR station geographical coordinates, default: None')
+        help = 'LOFAR ONLY(NOT REQUIRED): AntennaArray.conf file for the LOFAR station geographical coordinates, default: None')
     o.add_option('-D', '--deltas', dest='deltas', default=None,
         help = 'LOFAR ONLY: iHBADeltas.conf file, only required for HBA imaging, default: None')
     o.add_option('-r', '--rcumode', dest='rcumode', default=3, type='int',

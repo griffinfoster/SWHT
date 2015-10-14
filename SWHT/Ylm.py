@@ -1,4 +1,5 @@
-"""An implementation on spherical harmonics in python becasue scipy.special.sph_harm in scipy<=0.13 is very slow
+"""
+An implementation on spherical harmonics in python becasue scipy.special.sph_harm in scipy<=0.13 is very slow
 
 Originally written by Jozef Vesely
 https://github.com/scipy/scipy/issues/1280

@@ -81,9 +81,6 @@ def computeblm(vislm, reverse=False):
         for m in np.arange(-1*l, l+1):
             if reverse: blm[l, l+m] = vislm[l, l+m] * (4.*np.pi*((-1.*1j)**float(l)))
             else: blm[l, l+m] = vislm[l, l+m] / (4.*np.pi*((-1.*1j)**float(l)))
-            #if reverse: blm[l, l+m] = vislm[l, l+m] / (4.*np.pi*((-1.*1j)**float(l)))
-            #else: blm[l, l+m] = vislm[l, l+m] * (4.*np.pi*((-1.*1j)**float(l)))
-            #TODO: unclear which should be multiply and which should be divide
     return blm
 
 def swhtImageCoeffs(vis, uvw, freqs, lmax):
@@ -113,9 +110,7 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax):
     #compute the SWHT visibility coefficients
     vislm = computeVislm(lmax, k, r, theta, phi, vis)
     #compute the SWHT brightness coefficients
-    #TODO: tobia uses the reverse of eq. 11 when computing image coeffs, mistake in paper?
-    #blm = computeblm(vislm, reverse=True)
-    blm = computeblm(vislm, reverse=False)
+    blm = computeblm(vislm)
 
     print time.time() - start_time
 

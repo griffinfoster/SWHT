@@ -2,11 +2,6 @@
 Functions and classes to read and parse LOFAR station configuration files
 """
 
-#TODO: currently taking the entire correlation matrix, but only really need to take half
-#TODO: drop antennaArray, only (lat,lon,elev) is used from this file, but it is non-trivial to convert (x,y,z) which is in the antennaField file to (lat,long,elev), look at Tobia's mscorpol
-#TODO: use rotation matrix in antennaField?
-#TODO: tests
-
 import numpy as np
 import glob
 import os
@@ -24,11 +19,12 @@ rcuInfo = [ {'mode':'OFF', 'rcuID':0, 'array_type':'LBA', 'bw':100000000., 'offs
             {'mode':'HBA_170_230MHZ', 'rcuID':6, 'array_type':'HBA', 'bw': 80000000., 'offset':160000000., 'nchan':512}, #6
             {'mode':'HBA_210_290MHZ', 'rcuID':7, 'array_type':'HBA', 'bw':100000000., 'offset':200000000., 'nchan':512}] #7
 
-def getLofarStation(name=None, affn=None, aafn=None, deltas=None):
+def getLofarStation(name=None, affn=None, aafn=None, deltas=None, noarrays=True):
     """Create an instance of the lofarStation class based on a station name and the configuration repo, or from the antenna array and field files
     name: station name (required if no filenames used)
     affn, aafn: AntennaArray filename, AntennaField filename (required if station name is not used)
     deltas: HBA tile deltas filename, optional, only used in HBA imaging
+    noarrays: do not require a *-AntennaArrays.conf file
     """
     nameValid = False #used to check if the input station name is valid
     confValid = False #used to check if the input ant_array and ant_field pair is valid
@@ -37,7 +33,11 @@ def getLofarStation(name=None, affn=None, aafn=None, deltas=None):
         repoaafn = glob.glob(StaticMetaData+name+'-AntennaArrays.conf')
         repoaffn = glob.glob(StaticMetaData+name+'-AntennaField.conf')
         repodfn = glob.glob(StaticMetaData+name+'-iHBADeltas.conf')
-        if len(repoaafn)==1 and len(repoaffn)==1:
+        if len(repoaafn)==1 and noarrays: #case: only require AntennaField.conf file
+            repoaffn = repoaffn[0]
+            repoaafn = None
+            nameValid = True
+        elif len(repoaafn)==1 and len(repoaffn)==1: #case: using bother AntennaArrays.conf and AntennaField.conf files
             repoaafn = repoaafn[0]
             repoaffn = repoaffn[0]
             nameValid = True
@@ -67,12 +67,12 @@ def getLofarStation(name=None, affn=None, aafn=None, deltas=None):
         return lofarStation(name, repoaffn, repoaafn, deltas=dfn)
 
 class lofarStation():
-    def __init__(self, name, affn, aafn, deltas=None):
+    def __init__(self, name, affn, aafn=None, deltas=None):
         """deltas: optional HBA deltas file
         """
         self.name = name
         self.antField = antennaField(name, affn)
-        self.antArrays = antennaArrays(name, aafn)
+        if aafn is not None: self.antArrays = antennaArrays(name, aafn)
 
         if deltas is not None: self.deltas = getHBADeltas(deltas)
         else: self.deltas = None
@@ -132,13 +132,19 @@ class antennaField():
                 self.antpos[lastMode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0), int(l1), int(l2)))
         #convert antenna positions to local horizon coordinate system
         for mode in self.antpos:
+            #a bit hacky, but some stations use HBA0 and HBA1 for the rotation matrix and HBA for the antenna postions
+            for rkey in self.rotMatrix:
+                if mode.startswith(rkey):
+                    rotMode = mode
+                    continue
             self.localAntPos[mode] = np.zeros_like(self.antpos[mode])
-            self.localAntPos[mode][:,0,:] = np.linalg.lstsq(self.rotMatrix[mode], self.antpos[mode][:,0,:].T)[0].T
-            self.localAntPos[mode][:,1,:] = np.linalg.lstsq(self.rotMatrix[mode], self.antpos[mode][:,1,:].T)[0].T
+            self.localAntPos[mode][:,0,:] = np.linalg.lstsq(self.rotMatrix[rotMode], self.antpos[mode][:,0,:].T)[0].T
+            self.localAntPos[mode][:,1,:] = np.linalg.lstsq(self.rotMatrix[rotMode], self.antpos[mode][:,1,:].T)[0].T
 
 class antennaArrays():
     def __init__(self, name, fn):
         """Parse the AntenneArrays file, most of the informationis redundant to the AntennaField file, but contains the (lat, long, height)
+        DEPRECIATED: these files were used to get the station (lat, lon, h) only, but that is now computed with the array X,Y,Z positions in antennaField() using ecef.py
         """
         self.name = name
         self.antpos = {}
@@ -213,6 +219,8 @@ if __name__ == '__main__':
     print RS208.name
     UK608 = lofarStation('UK608','data/LOFAR/StaticMetaData/UK608-AntennaField.conf', 'data/LOFAR/StaticMetaData/UK608-AntennaArrays.conf')
     print UK608.name
+    SE607 = lofarStation('SE607','data/LOFAR/StaticMetaData/SE607-AntennaField.conf')
+    print SE607.name
 
     CS002 = lofarStation('CS002','data/LOFAR/StaticMetaData/CS002-AntennaField.conf', 'data/LOFAR/StaticMetaData/CS002-AntennaArrays.conf')
     CS003 = lofarStation('CS003','data/LOFAR/StaticMetaData/CS003-AntennaField.conf', 'data/LOFAR/StaticMetaData/CS003-AntennaArrays.conf')
@@ -240,3 +248,4 @@ if __name__ == '__main__':
     getLofarStation(affn='data/LOFAR/StaticMetaData/SE607-AntennaField.conf', aafn='data/LOFAR/StaticMetaData/SE607-AntennaArrays.conf', deltas='data/LOFAR/StaticMetaData/SE607-iHBADeltas.conf')
 
     print 'Made it through without any errors.'
+
