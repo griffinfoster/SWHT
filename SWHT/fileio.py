@@ -85,6 +85,32 @@ def readImgPkl(fn):
     fh.close()
     return imgDict
 
+def writeSWHTImgPkl(fn, d, fDict, mode):
+    """Write a SWHT image cube to a pickle file
+    fn: str, pickle filename
+    d: numpy array, image data
+    fDict: dict, meta data from original visibility file
+    """
+    imgDict = {
+        'meta': fDict,
+        'mode': mode}
+    if mode.startswith('3D'):
+        imgDict['img'] = d[0]
+        imgDict['phi'] = d[1]
+        imgDict['theta'] = d[2]
+    else:
+        imgDict['img'] = d
+    fh = open(fn, 'wb')
+    pkl.dump(imgDict, fh)
+    fh.close()
+
+def readSWHTImgPkl(fn):
+    """Read an image cube from a pickle file, see writeSWHTImgPkl() for contents"""
+    fh = open(fn,'rb')
+    imgDict = pkl.load(fh)
+    fh.close()
+    return imgDict
+
 if __name__ == '__main__':
     print 'Running test cases...'
 

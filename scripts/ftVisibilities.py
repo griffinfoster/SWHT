@@ -5,8 +5,10 @@ Perform a Fourier Transform (standard or fast) on LOFAR ACC/XST data or widefiel
 
 #TODO: Multiple frequencies
 #TODO: Multiple LOFAR files
+
 #TODO: apply LOFAR gain solutions
 #TODO: replace ephem with astropy.coordinates
+#TODO: currently taking the entire correlation matrix, but only really need to take half
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -207,8 +209,8 @@ if __name__ == '__main__':
     print 'Performing Fourier Transform'
     pixels = opts.pixels
     px = [pixels,pixels]
-    fov = opts.fov*(np.pi/180.) #Field of View in radians
-    res = fov/px[0] #pixel resolution
+    fov = opts.fov * (np.pi/180.) #Field of View in radians
+    res = fov / px[0] #pixel resolution
     print 'Resolution(deg):', res*180./np.pi
 
     #perform DFT or FFT

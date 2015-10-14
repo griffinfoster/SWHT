@@ -3,15 +3,17 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: how to handle polarization
-#TODO: how does weighting work?
-#TODO: Multiple frequencies
-#TODO: Multiple LOFAR files, build sphere with different limits for each file
 #TODO: apply LOFAR gain solutions
 #TODO: replace ephem with astropy.coordinates
-#TODO: clean-up options
-#TODO: option: image from coefficients
 #TODO: currently taking the entire correlation matrix, but only really need to take half
+#TODO: how to handle polarization
+#TODO: how does weighting work?
+
+#TODO: Multiple frequencies
+#TODO: Multiple LOFAR files, build sphere with different limits for each file
+#TODO: 3D mask
+#TODO: 2D roation, confirm correct coordinate orientation for imaging
+#TODO: HEALPIX generator
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -46,12 +48,12 @@ if __name__ == '__main__':
         help = 'Width of 2D image in pixels, or number of steps in 3D image, default: 64')
     o.add_option('-C', '--cal', dest='calfile', default=None,
         help = 'LOFAR ONLY: Apply a calibration soultion file to the data.')
-    #o.add_option('-S', '--save', dest='savefig', default=None,
-    #    help = 'Save the figure using this name, type is determined by extension')
+    o.add_option('-S', '--save', dest='savefig', default=None,
+        help = 'Save the figure using this name, type is determined by extension')
     o.add_option('--nodisplay', dest='nodisplay', action='store_true',
         help = 'Do not display the generated image')
-    #o.add_option('--pkl', dest='pkl', default=None,
-    #    help = 'Save complex images in a numpy array in a pickle file using this name (include .pkl extention), default: tempImage.pkl')
+    o.add_option('--pkl', dest='pkl', default=None,
+        help = 'Save complex images in a numpy array in a pickle file using this name (include .pkl extention), default: tempImage.pkl')
     o.add_option('-i', '--int', dest='int_time', default=1., type='float',
         help = 'LOFAR ONLY: Integration time, used for accurate zenith pointing, for XST it will override filename metadata, default: 1 second')
     o.add_option('-c', '--column', dest='column', default='CORRECTED_DATA', type='str',
@@ -60,10 +62,8 @@ if __name__ == '__main__':
         help = 'LOFAR XST ONLY: override filename metadata for RCU, integration length, and subband')
     o.add_option('--autos', dest='autos', action='store_true',
         help = 'Drop the auto-correlation in the image, by default they are included')
-    #o.add_option('--weight', dest='weighting', default='natural',
-    #    help = 'Weighting mode, natural (default), uniform')
-    #o.add_option('--fov', dest='fov', default=180., type='float',
-    #    help = 'Field of View in degrees, default: 180 (all-sky)')
+    o.add_option('--fov', dest='fov', default=180., type='float',
+        help = '2D IMAGING MODE ONLY: Field of View in degrees, default: 180 (all-sky)')
     o.add_option('-l', '--lmax', dest='lmax', default=32, type='int',
         help = 'Maximum l spherical harmonic quantal number, rule-of-thumb: used number of antenna elements, default: 32')
     o.add_option('--ocoeffs', dest='ocoeffs', default=None,
@@ -162,12 +162,9 @@ if __name__ == '__main__':
         #uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([cc])).reshape(nants*nants,3) #HACK: convert xyz to uvw but keep in units of meters
         #print np.reshape(uvw[:,0], (96, 96))
 
-        ##uv coverage plot
-        #plt.plot(uvw[:,0], uvw[:,1], '.')
-        #plt.show()
-
         #in order to accommodate multiple observations at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
         LSTangle = obs.sidereal_time() #radians
+        print 'LST:',  LSTangle
         rotMatrix = np.array([[np.cos(LSTangle), -1.*np.sin(LSTangle), 0.],
                               [np.sin(LSTangle), np.cos(LSTangle),     0.],
                               [0.,               0.,                   1.]]) #rotate about the z-axis
@@ -256,11 +253,23 @@ if __name__ == '__main__':
         SWHT.fileio.writeCoeffPkl(outCoeffPklFn, iImgCoeffs)
 
     #Imaging
+    if opts.pkl is None: outPklFn = 'tempImage.pkl'
+    else: outPklFn = opts.pkl
+
     if opts.imageMode.startswith('2'): #Make a 2D hemispheric image
-        print 'Generating 2D Hemisphere Image of size (%i, %i)'%(opts.pixels, opts.pixels)
-        img = SWHT.swht.make2Dimage(iImgCoeffs, dim=[opts.pixels, opts.pixels])
+        fov = opts.fov * (np.pi/180.) #Field of View in radians
+        px = [opts.pixels, opts.pixels]
+        res = fov/px[0] #pixel resolution
+        print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
+        print 'Resolution(deg):', res*180./np.pi
+        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[LSTangle, obs.lat])
         plt.imshow(np.abs(img), interpolation='nearest')
         plt.colorbar()
+
+        #save complex image to pickle file
+        print 'Writing image to file %s ...'%outPklFn,
+        SWHT.fileio.writeSWHTImgPkl(outPklFn, img, fDict, mode='2D')
+        print 'done'
 
     elif opts.imageMode.startswith('3'): #Make a 3D equal stepped image
         print 'Generating 3D Image with %i steps in theta and %i steps in phi'%(opts.pixels, opts.pixels)
@@ -282,54 +291,23 @@ if __name__ == '__main__':
         scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
         C = scalarMap.to_rgba(img)
         surf = ax.plot_surface(X, Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+
+        #save complex image to pickle file
+        print 'Writing image to file %s ...'%outPklFn,
+        SWHT.fileio.writeSWHTImgPkl(outPklFn, [img, phi, theta], fDict, mode='3D')
+        print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
         coeffImg = np.hstack((iImgCoeffs[:,:,0].real, iImgCoeffs.imag[:,:,0]))
         coeffImg[0,0] = 0.
         plt.imshow(coeffImg, interpolation='nearest')
         plt.colorbar()
-    
+
+        #save complex image to pickle file
+        print 'Writing image to file %s ...'%outPklFn,
+        SWHT.fileio.writeSWHTImgPkl(outPklFn, coeffImg, fDict, mode='coeffs')
+        print 'done'
+
+    if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay: plt.show()
-
-    ##save complex image to pickle file
-    #if opts.pkl is None: outPklFn = 'tempImage.pkl'
-    #else: outPklFn = opts.pkl
-    #print 'Writing image to file %s ...'%outPklFn,
-    #SWHT.fileio.writeImgPkl(outPklFn, np.array([xxIm,xyIm,yxIm,yyIm]), fDict, res=res, fttype=fttype, imtype='complex')
-    #print 'done'
-    #
-    ##display stokes plots
-    #if not opts.nodisplay or not (opts.savefig is None):
-    #    #generate stokes images
-    #    iIm = (xxIm + yyIm).real
-    #    qIm = (xxIm - yyIm).real
-    #    uIm = (xyIm + yxIm).real
-    #    vIm = (yxIm - xyIm).imag
-    #
-    #    plt.subplot(2,2,1)
-    #    plt.imshow(iIm)
-    #    plt.xlabel('Pixels (E-W)')
-    #    plt.ylabel('Pixels (N-S)')
-    #    plt.title('I')
-    #    plt.colorbar()
-    #    plt.subplot(2,2,2)
-    #    plt.imshow(qIm)
-    #    plt.xlabel('Pixels (E-W)')
-    #    plt.ylabel('Pixels (N-S)')
-    #    plt.title('Q')
-    #    plt.colorbar()
-    #    plt.subplot(2,2,3)
-    #    plt.imshow(uIm)
-    #    plt.xlabel('Pixels (E-W)')
-    #    plt.ylabel('Pixels (N-S)')
-    #    plt.title('U')
-    #    plt.colorbar()
-    #    plt.subplot(2,2,4)
-    #    plt.imshow(vIm)
-    #    plt.xlabel('Pixels (E-W)')
-    #    plt.ylabel('Pixels (N-S)')
-    #    plt.title('V')
-    #    plt.colorbar()
-    #if not (opts.savefig is None): plt.savefig(opts.savefig)
-    #if not opts.nodisplay: plt.show()
-
+    

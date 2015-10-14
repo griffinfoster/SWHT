@@ -116,22 +116,26 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax):
 
     return blm
 
-#TODO: make2Dimage: FoV
-def make2Dimage(coeffs, dim=[64, 64]):
+def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     """Make a flat image of a single hemisphere from SWHT image coefficients
     coeffs: SWHT brightness coefficients
-    dim: [int, int], number of pixels, note these are equivalent to the l,m coordinates in FT imaging
+    px: [int, int], number of pixels, note these are equivalent to the l,m coordinates in FT imaging
+    res: float, resolution of the central pixel in radians
+    phs: [float, float], RA and Dec (radians) position at the center of the image
     """
     start_time = time.time()
 
     #start from a regular Cartesian grid
-    xx,yy = np.meshgrid(np.linspace(-1., 1., num=dim[0]), np.linspace(-1., 1., num=dim[1]))
+    lrange = np.linspace(-1.*px[0]*res/2., px[0]*res/2., num=px[0], endpoint=True)/(np.pi/2.) #m range (-1,1)
+    mrange = np.linspace(-1.*px[1]*res/2., px[1]*res/2., num=px[1], endpoint=True)/(np.pi/2.) #l range (-1,1)
+    xx,yy = np.meshgrid(lrange, mrange)
+    #xx,yy = np.meshgrid(np.linspace(-1., 1., num=px[0]), np.linspace(-1., 1., num=px[1])) #Full hemisphere, no FoV control
     img = np.zeros(xx.shape, dtype='complex')
     
     #convert to polar positions
     r = np.sqrt(xx**2. + yy**2.)
     phi = np.arctan2(yy, xx)
-    #zero out undefiined regions of the image where r>0
+    #zero out undefined regions of the image where r>0
     #numpy is super cunty and makes it fucking hard to do simple things, so the next few lines are bullshit that should only take 2 lines
     idx = np.argwhere(r.flatten()>1)
     rflat = r.flatten()
