@@ -8,7 +8,6 @@ Perform a Fourier Transform (standard or fast) on LOFAR ACC/XST data or widefiel
 
 #TODO: apply LOFAR gain solutions
 #TODO: replace ephem with astropy.coordinates
-#TODO: currently taking the entire correlation matrix, but only really need to take half
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -152,13 +151,22 @@ if __name__ == '__main__':
         xyz = []
         for a in ants: xyz.append([a[0,0]+arr_xyz[0], a[0,1]+arr_xyz[1], a[0,2]+arr_xyz[2]])
         xyz = np.array(xyz)
-        uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq])).reshape(nants*nants,3)
+        #uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq])).reshape(nants*nants,3)
+        uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq]))
+        uu = SWHT.util.vectorize(uvw[:,:,0])
+        vv = SWHT.util.vectorize(uvw[:,:,1])
+        ww = SWHT.util.vectorize(uvw[:,:,2])
+        uvw = np.vstack((uu, vv, ww)).T
 
-        #split up polarizations
-        xxVis = corrMatrix[0::2,0::2].reshape(nants*nants)
-        xyVis = corrMatrix[0::2,1::2].reshape(nants*nants)
-        yxVis = corrMatrix[1::2,0::2].reshape(nants*nants)
-        yyVis = corrMatrix[1::2,1::2].reshape(nants*nants)
+        #split up polarizations, vectorize the correlation matrix, and drop the lower triangle
+        #xxVis = corrMatrix[0::2,0::2].reshape(nants*nants)
+        #xyVis = corrMatrix[0::2,1::2].reshape(nants*nants)
+        #yxVis = corrMatrix[1::2,0::2].reshape(nants*nants)
+        #yyVis = corrMatrix[1::2,1::2].reshape(nants*nants)
+        xxVis = SWHT.util.vectorize(corrMatrix[0::2,0::2])
+        xyVis = SWHT.util.vectorize(corrMatrix[0::2,1::2])
+        yxVis = SWHT.util.vectorize(corrMatrix[1::2,0::2])
+        yyVis = SWHT.util.vectorize(corrMatrix[1::2,1::2])
 
         #uv coverage plot
         #plt.plot(uvw[:,0], uvw[:,1], '.')

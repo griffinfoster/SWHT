@@ -11,7 +11,6 @@ Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield M
 #TODO: Multiple frequencies
 #TODO: Multiple LOFAR files, build sphere with different limits for each file
 #TODO: 3D, HEALPix mask
-#TODO: currently taking the entire correlation matrix, but only really need to take half
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -177,16 +176,24 @@ if __name__ == '__main__':
             xyz.append(np.dot(a[0], rotMatrix))
         xyz = np.array(xyz)
         repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
-        uvw = np.zeros((nants*nants, 3))
-        uvw[:,0] = (repxyz[:,:,0] - repxyz[:,:,0].T).flatten()
-        uvw[:,1] = (repxyz[:,:,1] - repxyz[:,:,1].T).flatten()
-        uvw[:,2] = (repxyz[:,:,2] - repxyz[:,:,2].T).flatten()
+        #uvw = np.zeros((nants*nants, 3))
+        #uvw[:,0] = (repxyz[:,:,0] - repxyz[:,:,0].T).flatten()
+        #uvw[:,1] = (repxyz[:,:,1] - repxyz[:,:,1].T).flatten()
+        #uvw[:,2] = (repxyz[:,:,2] - repxyz[:,:,2].T).flatten()
+        uu = SWHT.util.vectorize(repxyz[:,:,0] - repxyz[:,:,0].T)
+        vv = SWHT.util.vectorize(repxyz[:,:,1] - repxyz[:,:,1].T)
+        ww = SWHT.util.vectorize(repxyz[:,:,2] - repxyz[:,:,2].T)
+        uvw = np.vstack((uu, vv, ww)).T
 
-        #split up polarizations
-        xxVis = corrMatrix[0::2,0::2].reshape(nants*nants)
-        xyVis = corrMatrix[0::2,1::2].reshape(nants*nants)
-        yxVis = corrMatrix[1::2,0::2].reshape(nants*nants)
-        yyVis = corrMatrix[1::2,1::2].reshape(nants*nants)
+        #split up polarizations, vectorize the correlation matrix, and drop the lower triangle
+        #xxVis = corrMatrix[0::2,0::2].reshape(nants*nants)
+        #xyVis = corrMatrix[0::2,1::2].reshape(nants*nants)
+        #yxVis = corrMatrix[1::2,0::2].reshape(nants*nants)
+        #yyVis = corrMatrix[1::2,1::2].reshape(nants*nants)
+        xxVis = SWHT.util.vectorize(corrMatrix[0::2,0::2])
+        xyVis = SWHT.util.vectorize(corrMatrix[0::2,1::2])
+        yxVis = SWHT.util.vectorize(corrMatrix[1::2,0::2])
+        yyVis = SWHT.util.vectorize(corrMatrix[1::2,1::2])
 
         ##uv coverage plot
         #plt.plot(uvw[:,0], uvw[:,1], '.')

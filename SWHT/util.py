@@ -37,6 +37,12 @@ def cart2sph(X, Y, Z):
 
     return r, phi, theta
 
+def vectorize(mat):
+    """Convert upper-left triangle of mat to rank 1 vector
+    """
+    idx = np.triu_indices(mat.shape[0])
+    return mat[idx]
+
 import numpy as np
 
 if __name__ == '__main__':
@@ -48,6 +54,10 @@ if __name__ == '__main__':
 
     print np.allclose(theta, theta0)
     print np.allclose(phi, phi0)
+
+    aa = np.arange(5*5).reshape(5,5)
+    print aa
+    print vectorize(aa)
 
     from matplotlib import pyplot as plt
     plt.subplot(221)
