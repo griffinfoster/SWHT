@@ -44,9 +44,10 @@ def spharm(l, m, theta, phi):
     else:
         return scipy.special.sph_harm(n=l, m=m, theta=phi, phi=theta) #scipy uses non-standard notation
 
-def computeVislm(lmax, k, r, theta, phi, vis):
+def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     """Compute the spherical wave harmonics visibility coefficients, Eq. 16 of Carozzi 2015
     lmax: positive int, maximum spherical harmonic l number
+    lmin: positive int, minimum spherical harmonic l number, usually 0
     k: [N, 1] float array, wave number, observing frequencies/c (1/meters)
     r, theta, phi: [Q, 1] float arrays of visibility positions transformed from (u,v,w) positions, r (meters)
     vis: [Q, N] complex array, observed visibilities
@@ -60,6 +61,7 @@ def computeVislm(lmax, k, r, theta, phi, vis):
 
     print 'L:',
     for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
+        if l < lmin: continue
         print l,
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
@@ -83,12 +85,13 @@ def computeblm(vislm, reverse=False):
             else: blm[l, l+m] = vislm[l, l+m] / (4.*np.pi*((-1.*1j)**float(l)))
     return blm
 
-def swhtImageCoeffs(vis, uvw, freqs, lmax):
+def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
     """Generate brightness coefficients based converting visibilities with the SWHT
     vis: complex array [Q, F], Q observed visibilities at F frequencies, can be size [Q] if only using 1 frequency
     uvw: float array [Q, 3], meters
     freqs: float array [F, 1] or [F], observing frequencies in Hz
     lmax: positive int, maximum spherical harmonic l number
+    lmin: positive int, minimum spherical harmonic l number, usually 0
     """
     start_time = time.time()
 
@@ -108,7 +111,7 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax):
     #theta = (np.pi/2.) - np.arctan2(uvw[:,2], np.sqrt(uvw[:,0]**2. + uvw[:,1]**2.))[np.newaxis].T #make range -pi/2 to pi/2
 
     #compute the SWHT visibility coefficients
-    vislm = computeVislm(lmax, k, r, theta, phi, vis)
+    vislm = computeVislm(lmax, k, r, theta, phi, vis, lmin=lmin)
     #compute the SWHT brightness coefficients
     blm = computeblm(vislm)
 

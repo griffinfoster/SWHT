@@ -5,14 +5,13 @@ Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield M
 
 #TODO: apply LOFAR gain solutions
 #TODO: replace ephem with astropy.coordinates
-#TODO: currently taking the entire correlation matrix, but only really need to take half
 #TODO: how to handle polarization
-#TODO: how does weighting work?
+#TODO: how does weighting work? radially down/up weight vis in computeVislm()?
 
 #TODO: Multiple frequencies
 #TODO: Multiple LOFAR files, build sphere with different limits for each file
 #TODO: 3D, HEALPix mask
-#TODO: 2D roation, confirm correct coordinate orientation for imaging
+#TODO: currently taking the entire correlation matrix, but only really need to take half
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -66,6 +65,8 @@ if __name__ == '__main__':
         help = '2D IMAGING MODE ONLY: Field of View in degrees, default: 180 (all-sky)')
     o.add_option('-l', '--lmax', dest='lmax', default=32, type='int',
         help = 'Maximum l spherical harmonic quantal number, rule-of-thumb: used number of antenna elements, default: 32')
+    o.add_option('--lmin', dest='lmin', default=0, type='int',
+        help = 'Minimum l spherical harmonic quantal number, usually left as 0, default: 0')
     o.add_option('--ocoeffs', dest='ocoeffs', default=None,
         help = 'Save output image coefficients to a pickle file using this name (include .pkl extention), default: tempCoeffs.pkl')
     o.add_option('-I', '--image', dest='imageMode', default='2D',
@@ -249,7 +250,7 @@ if __name__ == '__main__':
         print 'Performing Spherical Wave Harmonic Transform'
         print 'LMAX:', opts.lmax
         #TODO: only doing total intensity right now
-        iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVis+yyVis, uvw, np.array([freq]), lmax=opts.lmax)
+        iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVis+yyVis, uvw, np.array([freq]), lmax=opts.lmax, lmin=opts.lmin)
         #iImgCoeffs = np.ones((7, 13, 1))
 
         #save image coefficients to file
