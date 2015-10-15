@@ -41,13 +41,17 @@ def parse(fn, fmt=None):
         fDict['fmt'] = -1
     return fDict
 
-def writeCoeffPkl(fn, coeffs):
+def writeCoeffPkl(fn, coeffs, phs=[0., 0.], lst=0.):
     """Write SWHT image coefficients to file
     fn: str, pickle filename
     coeffs: 2D array of complex coefficients
+    phs: [float, float], RA and Dec (radians) position at the center of the image
+    lst: float, local sidereal time of snapshot
     """
     coeffDict = {
-        'coeffs': coeffs
+        'coeffs': coeffs,
+        'phs': phs,
+        'lst': lst
     }
     fh = open(fn, 'wb')
     pkl.dump(coeffDict, fh)

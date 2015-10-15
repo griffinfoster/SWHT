@@ -4,13 +4,13 @@ Based on T. Carozzi MATLAB code
 """
 
 #TODO: speedup spharm: multi-core, write function instead of scipy.special, use Ylm
-#TODO: tests
 
 import numpy as np
 import scipy.special
 import math
 import time
 import sys
+import healpy as hp
 
 import Ylm
 import util
@@ -146,8 +146,25 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     phi = np.reshape(phiflat, phi.shape)
 
     #convert to unit sphere coordinates
-    thetap = np.pi/2 - np.arccos(r) #zenith is at pi in spherical coordinates
+    thetap = np.pi/2. - np.arccos(r) #north pole is at 0 in spherical coordinates
     phip = phi + np.pi #azimuth range [0, 2pi]
+
+    #Determine the theta, phi coordinates for a hemisphere at the snapshot zenith
+    X, Y, Z = util.sph2cart(thetap, phip)
+    ra = phs[0]
+    raRotation = np.array([[np.cos(ra), -1.*np.sin(ra), 0.],
+                           [np.sin(ra),     np.cos(ra), 0.],
+                           [        0.,             0., 1.]]) #rotate about the z-axis
+    dec = np.pi/2. - phs[1] #adjust relative to the north pole at pi/2
+    decRotation = np.array([[1.,0.,0.],
+                            [0., np.cos(dec), -1.*np.sin(dec)],
+                            [0., np.sin(dec), np.cos(dec)]]) #rotate about the x-axis
+    XYZ = np.vstack((X.flatten(), Y.flatten(), Z.flatten()))
+    XYZ0 = np.dot(np.dot(raRotation, decRotation), XYZ) #order of rotation is important
+    r0, phi0, theta0 = util.cart2sph(XYZ0[0,:], XYZ0[1,:], XYZ0[2,:])
+    r0 = r0.reshape(thetap.shape) #not used, should all be nearly 1
+    phi0 = phi0.reshape(thetap.shape) #rotated phi values
+    theta0 = theta0.reshape(thetap.shape) #rotated theta values
 
     lmax = coeffs.shape[0]
     print 'L:',
@@ -155,7 +172,7 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
         print l,
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
-            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phip, thetap) #TODO: a slow call
+            img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi0, theta0) #TODO: a slow call
     print 'done'
 
     print time.time() - start_time
@@ -181,7 +198,28 @@ def make3Dimage(coeffs, dim=[64, 64]):
             img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi, theta) #TODO: a slow call
     print 'done'
 
-    return img, phi, theta
+    return img, phi, np.pi - theta #flip theta values
+
+#TODO: makeHEALPix: masking
+def makeHEALPix(coeffs, nside=64):
+    """Make a HEALPix map from SWHT image coefficients
+    coeffs: SWHT brightness coefficients
+    nside: int, HEALPix NSIDE
+    """
+    hpIdx = np.arange(hp.nside2npix(nside)) #create an empty HEALPix map
+    hpmap = np.zeros((hp.nside2npix(nside)), dtype=complex) #HEALPix ids
+    theta, phi = hp.pix2ang(nside, hpIdx)
+
+    lmax = coeffs.shape[0]
+    print 'L:',
+    for l in np.arange(lmax):
+        print l,
+        sys.stdout.flush()
+        for m in np.arange(-1*l, l+1):
+            hpmap += coeffs[l, l+m] * Ylm.Ylm(l, m, phi, theta) #TODO: a slow call
+    print 'done'
+
+    return hpmap
 
 if __name__ == "__main__":
     print 'Running test cases'

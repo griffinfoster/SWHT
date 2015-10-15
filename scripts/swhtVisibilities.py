@@ -11,15 +11,15 @@ Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield M
 
 #TODO: Multiple frequencies
 #TODO: Multiple LOFAR files, build sphere with different limits for each file
-#TODO: 3D mask
+#TODO: 3D, HEALPix mask
 #TODO: 2D roation, confirm correct coordinate orientation for imaging
-#TODO: HEALPIX generator
 
 import numpy as np
 from matplotlib import pyplot as plt
 import datetime
 import ephem
 import pyrap.tables as pt
+import healpy as hp
 import sys,os
 import SWHT
 
@@ -45,15 +45,15 @@ if __name__ == '__main__':
     o.add_option('-s', '--subband', dest='subband', default=0, type='int',
         help = 'Select which subband(s) to image, for ACC and MS it will select, for XST it will override filename metadata, default:0')
     o.add_option('-p', '--pixels', dest='pixels', default=64, type='int',
-        help = 'Width of 2D image in pixels, or number of steps in 3D image, default: 64')
+        help = 'Width of 2D image in pixels, or number of steps in 3D image, or NSIDE in HEALPix image, default: 64')
     o.add_option('-C', '--cal', dest='calfile', default=None,
         help = 'LOFAR ONLY: Apply a calibration soultion file to the data.')
     o.add_option('-S', '--save', dest='savefig', default=None,
         help = 'Save the figure using this name, type is determined by extension')
     o.add_option('--nodisplay', dest='nodisplay', action='store_true',
         help = 'Do not display the generated image')
-    o.add_option('--pkl', dest='pkl', default=None,
-        help = 'Save complex images in a numpy array in a pickle file using this name (include .pkl extention), default: tempImage.pkl')
+    o.add_option('--of', dest='of', default=None,
+        help = 'Save complex images in a numpy array in a pickle file or HEALPix map using this name (include .pkl or .hpx extention), default: tempImage.pkl')
     o.add_option('-i', '--int', dest='int_time', default=1., type='float',
         help = 'LOFAR ONLY: Integration time, used for accurate zenith pointing, for XST it will override filename metadata, default: 1 second')
     o.add_option('-c', '--column', dest='column', default='CORRECTED_DATA', type='str',
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     o.add_option('--ocoeffs', dest='ocoeffs', default=None,
         help = 'Save output image coefficients to a pickle file using this name (include .pkl extention), default: tempCoeffs.pkl')
     o.add_option('-I', '--image', dest='imageMode', default='2D',
-        help='Imaging mode: 2D (hemisphere flattened), 3D, coeff (coefficients) default: 2D')
+        help='Imaging mode: 2D (hemisphere flattened), 3D, healpix, coeff (coefficients) default: 2D')
     opts, args = o.parse_args(sys.argv[1:])
 
     visFile = args[0]
@@ -164,6 +164,8 @@ if __name__ == '__main__':
 
         #in order to accommodate multiple observations at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
         LSTangle = obs.sidereal_time() #radians
+        obsLat = obs.lat #radians
+        obsLong = obs.long #radians
         print 'LST:',  LSTangle
         rotMatrix = np.array([[np.cos(LSTangle), -1.*np.sin(LSTangle), 0.],
                               [np.sin(LSTangle), np.cos(LSTangle),     0.],
@@ -224,6 +226,9 @@ if __name__ == '__main__':
         print 'Loading Image Coefficients file:', visFile
         coeffDict = SWHT.fileio.readCoeffPkl(visFile)
         iImgCoeffs = coeffDict['coeffs']
+        LSTangle = coeffDict['lst']
+        obsLong = coeffDict['phs'][0]
+        obsLat = coeffDict['phs'][1]
         decomp = False
     else:
         print 'ERROR: unknown data format, exiting'
@@ -250,11 +255,13 @@ if __name__ == '__main__':
         #save image coefficients to file
         if opts.ocoeffs is None: outCoeffPklFn = 'tempCoeffs.pkl'
         else: outCoeffPklFn = opts.pkl
-        SWHT.fileio.writeCoeffPkl(outCoeffPklFn, iImgCoeffs)
+        SWHT.fileio.writeCoeffPkl(outCoeffPklFn, iImgCoeffs, [float(obsLong), float(obsLat)], float(LSTangle))
 
     #Imaging
-    if opts.pkl is None: outPklFn = 'tempImage.pkl'
-    else: outPklFn = opts.pkl
+    if opts.of is None:
+        if opts.imageMode.startswith('heal'): outFn = 'tempImage.hpx'
+        else: outFn = 'tempImage.pkl'
+    else: outFn = opts.of
 
     if opts.imageMode.startswith('2'): #Make a 2D hemispheric image
         fov = opts.fov * (np.pi/180.) #Field of View in radians
@@ -262,13 +269,14 @@ if __name__ == '__main__':
         res = fov/px[0] #pixel resolution
         print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
         print 'Resolution(deg):', res*180./np.pi
-        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[LSTangle, obs.lat])
+        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        img = np.fliplr(img)
         plt.imshow(np.abs(img), interpolation='nearest')
         plt.colorbar()
 
         #save complex image to pickle file
-        print 'Writing image to file %s ...'%outPklFn,
-        SWHT.fileio.writeSWHTImgPkl(outPklFn, img, fDict, mode='2D')
+        print 'Writing image to file %s ...'%outFn,
+        SWHT.fileio.writeSWHTImgPkl(outFn, img, fDict, mode='2D')
         print 'done'
 
     elif opts.imageMode.startswith('3'): #Make a 3D equal stepped image
@@ -289,12 +297,24 @@ if __name__ == '__main__':
         imin = img.min()
         imax = img.max()
         scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
+        scalarMap.set_array(img)
         C = scalarMap.to_rgba(img)
-        surf = ax.plot_surface(X, Y, -1.*Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+        fig.colorbar(scalarMap)
 
         #save complex image to pickle file
-        print 'Writing image to file %s ...'%outPklFn,
-        SWHT.fileio.writeSWHTImgPkl(outPklFn, [img, phi, theta], fDict, mode='3D')
+        print 'Writing image to file %s ...'%outFn,
+        SWHT.fileio.writeSWHTImgPkl(outFn, [img, phi, theta], fDict, mode='3D')
+        print 'done'
+
+    elif opts.imageMode.startswith('heal'): #plot healpix and save healpix file using the opts.pkl name
+        print 'Generating HEALPix Image with %i NSIDE'%(opts.pixels)
+        m = SWHT.swht.makeHEALPix(iImgCoeffs, nside=opts.pixels)
+        #hp.mollview(np.abs(m))
+
+        #save complex image to HEALPix file
+        print 'Writing image to file %s ...'%outFn,
+        hp.write_map(outFn, np.abs(m))
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
@@ -304,10 +324,12 @@ if __name__ == '__main__':
         plt.colorbar()
 
         #save complex image to pickle file
-        print 'Writing image to file %s ...'%outPklFn,
-        SWHT.fileio.writeSWHTImgPkl(outPklFn, coeffImg, fDict, mode='coeffs')
+        print 'Writing image to file %s ...'%outFn,
+        SWHT.fileio.writeSWHTImgPkl(outFn, coeffImg, fDict, mode='coeffs')
         print 'done'
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
-    if not opts.nodisplay: plt.show()
+    if not opts.nodisplay:
+        if opts.imageMode.startswith('heal'): hp.mollview(np.abs(m))
+        plt.show()
     
