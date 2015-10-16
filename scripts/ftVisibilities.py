@@ -3,11 +3,8 @@
 Perform a Fourier Transform (standard or fast) on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: Multiple frequencies
 #TODO: Multiple LOFAR files
-
 #TODO: apply LOFAR gain solutions
-#TODO: replace ephem with astropy.coordinates
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -36,8 +33,8 @@ if __name__ == '__main__':
         help = 'LOFAR ONLY: iHBADeltas.conf file, only required for HBA imaging, default: None')
     o.add_option('-r', '--rcumode', dest='rcumode', default=3, type='int',
         help = 'LOFAR ONLY: Station RCU Mode, usually 3,5,6,7, for XST it will override filename metadata default: 3(LBA High)')
-    o.add_option('-s', '--subband', dest='subband', default=0, type='int',
-        help = 'Select which subband(s) to image, for ACC and MS it will select, for XST it will override filename metadata, default:0')
+    o.add_option('-s', '--subband', dest='subband', default='0',
+        help = 'Select which subband(s) to image, for ACC and MS it will select, for multiple subbands use X,Y,Z and for range use X_Y notation, for XST it will override filename metadata, default:0')
     o.add_option('-p', '--pixels', dest='pixels', default=64, type='int',
         help = 'Width of image in pixels, default: 64')
     o.add_option('-C', '--cal', dest='calfile', default=None,
@@ -69,11 +66,14 @@ if __name__ == '__main__':
     visFile = args[0]
     fDict = SWHT.fileio.parse(visFile)
 
+    #parse subbands
+    sbs = np.array(SWHT.util.convert_arg_range(opts.subband))
+
     #Pull out the visibility data in a (u,v,w) format
     if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
         if fDict['fmt']=='acc' or opts.override:
             fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
-            fDict['sb'] = int(opts.subband)
+            fDict['sb'] = sbs
             fDict['int'] = opts.int_time
 
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
@@ -102,23 +102,31 @@ if __name__ == '__main__':
         nchan = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['nchan']
         bw = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['bw']
         df = bw/nchan
-        freq = fDict['sb']*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset']
-        print 'SUBBAND: %i (%f MHz)'%(fDict['sb'], freq/1e6)
+        freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset']
+        print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
 
-        #get correlation matrix for a single subband
+        #get correlation matrix for subbands selected
         npols = 2
         nantpol = nants * npols
         print 'Reading in visibility data file ...',
         if fDict['fmt']=='acc':
+            tDeltas = [] #subband timestamp deltas from the end of file
             corrMatrix = np.fromfile(visFile, dtype='complex').reshape(nchan, nantpol, nantpol) #read in the complete correlation matrix
-            corrMatrix = corrMatrix[fDict['sb'], :, :] #select out a single subband, shape (nantpol, nantpol)
+            sbCorrMatrix = np.zeros((sbs.shape[0], nantpol, nantpol), dtype=complex)
+            for sbIdx, sb in enumerate(sbs):
+                sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
 
-            #correct the time due to subband stepping
-            tOffset = (nchan - fDict['sb']) * fDict['int'] #the time stamp in the filename in for the last subband
-            rem = tOffset - int(tOffset) #subsecond remainder
-            fDict['ts'] = fDict['ts'] - datetime.timedelta(0, int(tOffset), rem*1e6)
+                #correct the time due to subband stepping
+                tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
+                rem = tOffset - int(tOffset) #subsecond remainder
+                tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
+            meants = fDict['ts'] - SWHT.util.meanTimeDelta(tDeltas) #if using multiple subbands, use the mean offset time
+
         elif fDict['fmt']=='xst':
-            corrMatrix = np.fromfile(visFile, dtype='complex').reshape(nantpol, nantpol) #read in the correlation matrix
+            corrMatrix = np.fromfile(visFile, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
+            sbCorrMatrix = corrMatrix
+            meants = fDict['ts']
+
         print 'done'
         print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
         
@@ -151,30 +159,25 @@ if __name__ == '__main__':
         xyz = []
         for a in ants: xyz.append([a[0,0]+arr_xyz[0], a[0,1]+arr_xyz[1], a[0,2]+arr_xyz[2]])
         xyz = np.array(xyz)
-        #uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq])).reshape(nants*nants,3)
-        uvw = SWHT.ft.xyz2uvw(xyz, src, obs, np.array([freq]))
-        uu = SWHT.util.vectorize(uvw[:,:,0])
-        vv = SWHT.util.vectorize(uvw[:,:,1])
-        ww = SWHT.util.vectorize(uvw[:,:,2])
+        uvw = SWHT.ft.xyz2uvw(xyz, src, obs, freqs)
+        uu = SWHT.util.vectorize3D(uvw[:,:,:,0]).flatten()
+        vv = SWHT.util.vectorize3D(uvw[:,:,:,1]).flatten()
+        ww = SWHT.util.vectorize3D(uvw[:,:,:,2]).flatten()
         uvw = np.vstack((uu, vv, ww)).T
 
         #split up polarizations, vectorize the correlation matrix, and drop the lower triangle
-        #xxVis = corrMatrix[0::2,0::2].reshape(nants*nants)
-        #xyVis = corrMatrix[0::2,1::2].reshape(nants*nants)
-        #yxVis = corrMatrix[1::2,0::2].reshape(nants*nants)
-        #yyVis = corrMatrix[1::2,1::2].reshape(nants*nants)
-        xxVis = SWHT.util.vectorize(corrMatrix[0::2,0::2])
-        xyVis = SWHT.util.vectorize(corrMatrix[0::2,1::2])
-        yxVis = SWHT.util.vectorize(corrMatrix[1::2,0::2])
-        yyVis = SWHT.util.vectorize(corrMatrix[1::2,1::2])
+        xxVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 0::2, 0::2]).flatten()
+        xyVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 0::2, 1::2]).flatten()
+        yxVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 1::2, 0::2]).flatten()
+        yyVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 1::2, 1::2]).flatten()
 
-        #uv coverage plot
+        ##uv coverage plot
         #plt.plot(uvw[:,0], uvw[:,1], '.')
         #plt.show()
 
     elif fDict['fmt']=='ms': #MS-based visibilities
 
-        fDict['sb'] = int(opts.subband)
+        fDict['sb'] = sbs
 
         MS = pt.table(visFile, readonly=True)
         data_column = opts.column.upper()
@@ -185,16 +188,22 @@ if __name__ == '__main__':
 
         #freq information, convert uvw coordinates
         SW = pt.table(visFile + '/SPECTRAL_WINDOW')
-        freqs = SW.col('CHAN_FREQ').getcol() # [1, nchan]
-        uvw = uvw*freqs[0,fDict['sb']]/cc #convert (u,v,w) from metres to wavelengths
-        print 'SUBBAND: %i (%f MHz)'%(fDict['sb'], freqs[0,fDict['sb']]/1e6)
+        freqs = SW.col('CHAN_FREQ').getcol()[0, sbs][np.newaxis] # [1, nchan]
+        #convert (u,v,w) from metres to wavelengths
+        uu = np.dot(uvw[:,0][np.newaxis].T, freqs).flatten()
+        vv = np.dot(uvw[:,1][np.newaxis].T, freqs).flatten()
+        ww = np.dot(uvw[:,2][np.newaxis].T, freqs).flatten()
+        uvw = np.vstack((uu, vv, ww)).T / cc
+        print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
         SW.close()
 
         #split up polarizations
-        xxVis = vis[:,0] 
-        xyVis = vis[:,1]
-        yxVis = vis[:,2]
-        yyVis = vis[:,3]
+        print vis.shape
+        xxVis = vis[:,:,0].flatten() 
+        xyVis = vis[:,:,1].flatten()
+        yxVis = vis[:,:,2].flatten()
+        yyVis = vis[:,:,3].flatten()
+        print xxVis.shape
 
         ##uv coverage plot
         #plt.plot(uvw[:,0], uvw[:,1], '.')

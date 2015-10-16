@@ -4,8 +4,6 @@ Fourier Transform Functions
 functions phsCenterSrc, eq2top_m, get_baseline, gen_uvw, xyz2uvw are taken from AIPY (https://github.com/AaronParsons/aipy), used to compute (U,V,W) from ITRF (X,Y,Z)
 """
 
-#TODO: replace ephem with astropy.coordinates
-
 import numpy as np
 import ephem
 import sys,os
@@ -54,17 +52,17 @@ def gen_uvw(i, j, src, obs, f):
     x,y,z = get_baseline(i,j,src,obs)
     afreqs = np.reshape(f, (1,f.size))
     afreqs = afreqs/ephem.c #1/wavelength
-    if len(x.shape) == 0: return np.array([x*afreqs, y*afreqs, z*afreqs])
+    if len(x.shape) == 0: return np.array([x*afreqs, y*afreqs, z*afreqs]).T
     x.shape += (1,); y.shape += (1,); z.shape += (1,)
-    return np.array([np.dot(x,afreqs), np.dot(y,afreqs), np.dot(z,afreqs)])
+    return np.array([np.dot(x,afreqs), np.dot(y,afreqs), np.dot(z,afreqs)]).T
 
 def xyz2uvw(xyz, src, obs, f):
     """Return an array of UVW values"""
-    uvw = np.zeros((xyz.shape[0], xyz.shape[0],3))
+    uvw = np.zeros((f.shape[0], xyz.shape[0], xyz.shape[0], 3))
     for i in range(xyz.shape[0]):
         for j in range(xyz.shape[0]):
             if i==j: continue
-            uvw[i,j] = gen_uvw(xyz[i], xyz[j], src, obs, f)[:,0,0]
+            uvw[:, i, j, :] = gen_uvw(xyz[i], xyz[j], src, obs, f)[:,0,:]
     return uvw
 
 def dft2(d, l, m, u, v, psf=False):
@@ -74,8 +72,8 @@ def dft2(d, l, m, u, v, psf=False):
 
 def dftImage(d, uvw, px, res, mask=False, rescale=False, stokes=False):
     """return a DFT image
-    d: complex visibilities
-    uvw: visibility sampling in units of wavelengths
+    d: complex visibilities [F, Q] F frequency subbands, Q samples
+    uvw: visibility sampling in units of wavelengths [Q, 3]
     px: [int, int], number of pixels in image
     res: float, resolution of central pixel in radians
     rescale: account for missing np.sqrt(1-l^2-m^2) in flat-field approximation

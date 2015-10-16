@@ -3,7 +3,6 @@ functions to read/write data for the imagers
 """
 
 #TODO: hdf5 wrappers for visibilities and images
-#TODO: healpix reader/writer
 
 import cPickle as pkl
 import numpy as np

@@ -3,14 +3,10 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: apply LOFAR gain solutions
-#TODO: replace ephem with astropy.coordinates
-#TODO: how to handle polarization
-#TODO: how does weighting work? radially down/up weight vis in computeVislm()?
-
 #TODO: Multiple frequencies
-#TODO: Multiple LOFAR files, build sphere with different limits for each file
+#TODO: Multiple LOFAR/MS files, build sphere with different limits for each file
 #TODO: 3D, HEALPix mask
+#TODO: apply LOFAR gain solutions
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -199,7 +195,7 @@ if __name__ == '__main__':
         #plt.plot(uvw[:,0], uvw[:,1], '.')
         #plt.show()
 
-    #TODO: MS need to rotated to accomidate multiple snapshots
+    #TODO: MS need to be rotated to accomidate multiple snapshots
     elif fDict['fmt']=='ms': #MS-based visibilities
         decomp = True
 

@@ -3,6 +3,7 @@ Utility functions
 """
 
 import numpy as np
+import datetime
 
 def sph2cart(theta, phi, r=None):
     """Convert spherical coordinates to 3D cartesian
@@ -42,6 +43,30 @@ def vectorize(mat):
     """
     idx = np.triu_indices(mat.shape[0])
     return mat[idx]
+
+def vectorize3D(mat):
+    """Convert upper-left triangle of a 3D array to rank 1 vector, assumes the first axis is 
+    """
+    idx = np.triu_indices(mat.shape[1])
+    return mat[:, idx[0], idx[1]]
+
+def convert_arg_range(arg):
+    """Split apart command-line lists/ranges into a list of numbers."""
+    arg = arg.split(',')
+    outList = []
+    for aa in arg:
+        rr = map(int, aa.split('_'))
+        if len(rr)==1: outList.append(rr[0])
+        elif len(rr)==2:
+            outList.extend(range(rr[0], rr[1]+1))
+    return outList
+
+def meanTimeDelta(l):
+    """Return the mean of a list of datetime.timedelta objects"""
+    tDelta = datetime.timedelta(0)
+    for td in l:
+        tDelta += td
+    return tDelta/len(l)
 
 import numpy as np
 
