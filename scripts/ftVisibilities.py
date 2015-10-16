@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """
-Perform a Fourier Transform (standard or fast) on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
+Perform a Fourier Transform (standard or fast) on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image, single files only
 """
 
-#TODO: Multiple LOFAR files
 #TODO: apply LOFAR gain solutions
 
 import numpy as np
@@ -146,8 +145,8 @@ if __name__ == '__main__':
         obs.long = lon * (np.pi/180.)
         obs.lat = lat * (np.pi/180.)
         obs.elevation = float(elev)
-        obs.epoch = fDict['ts']
-        obs.date = fDict['ts']
+        obs.epoch = meants
+        obs.date = meants
         print 'Observatory:', obs
 
         src = ephem.FixedBody() #create a source at zenith
