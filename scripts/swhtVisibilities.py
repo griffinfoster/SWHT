@@ -3,7 +3,7 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: Multiple LOFAR/MS files, build sphere with different limits for each file
+#TODO: Multiple LOFAR/MS files: ACC, XST, MS
 #TODO: 3D, HEALPix mask
 #TODO: apply LOFAR gain solutions
 
@@ -67,207 +67,230 @@ if __name__ == '__main__':
         help='Imaging mode: 2D (hemisphere flattened), 3D, healpix, coeff (coefficients) default: 2D')
     opts, args = o.parse_args(sys.argv[1:])
 
-    visFile = args[0]
-    fDict = SWHT.fileio.parse(visFile)
-
     #parse subbands
     sbs = np.array(SWHT.util.convert_arg_range(opts.subband))
 
-    #Pull out the visibility data in a (u,v,w) format
-    if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
-        decomp = True
-        if fDict['fmt']=='acc' or opts.override:
-            fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
-            fDict['sb'] = sbs
-            fDict['int'] = opts.int_time
+    #setup variables for combined visibilities and uvw positions
+    xxVisComb = np.array([])
+    xyVisComb = np.array([])
+    yxVisComb = np.array([])
+    yyVisComb = np.array([])
+    uvwComb = np.array([]).reshape(0,3)
 
-        lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
+    #get filenames to image
+    visFiles = args
+    for vid,visFn in enumerate(visFiles):
+        print 'Using %s (%i/%i)'%(visFn, vid+1, len(visFiles))
+        fDict = SWHT.fileio.parse(visFn)
 
-        #longitude and latitude of array
-        #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
-        arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
-        lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
-        print 'LON(deg):', lon, 'LAT(deg):', lat, 'ELEV(m):', elev
+        #Pull out the visibility data in a (u,v,w) format
+        if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
+            decomp = True
+            if fDict['fmt']=='acc' or opts.override:
+                fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
+                fDict['sb'] = sbs
+                fDict['int'] = opts.int_time
 
-        #antenna positions
-        ants = lofarStation.antField.antpos[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
-        if 'elem' in fDict: #update the antenna positions if there is an element string
-            if lofarStation.deltas is None:
-                print 'Warning: HBA element string found, but HBADeltas file is missing, your image is probably not going to make sense'
-            else:
-                print 'Updating antenna positions with HBA element deltas'
-                for aid in np.arange(ants.shape[0]):
-                    delta = lofarStation.deltas[int(fDict['elem'][aid], 16)]
-                    delta = np.array([delta, delta])
-                    ants[aid] += delta
-        nants = ants.shape[0]
-        print 'NANTENNAS:', nants
+            lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
 
-        #frequency information
-        nchan = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['nchan']
-        bw = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['bw']
-        df = bw/nchan
-        freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset']
-        print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
+            #longitude and latitude of array
+            #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+            arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+            lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
+            print 'LON(deg):', lon, 'LAT(deg):', lat, 'ELEV(m):', elev
 
-        #get correlation matrix for subbands selected
-        npols = 2
-        nantpol = nants * npols
-        print 'Reading in visibility data file ...',
-        if fDict['fmt']=='acc':
-            tDeltas = [] #subband timestamp deltas from the end of file
-            corrMatrix = np.fromfile(visFile, dtype='complex').reshape(nchan, nantpol, nantpol) #read in the complete correlation matrix
-            sbCorrMatrix = np.zeros((sbs.shape[0], nantpol, nantpol), dtype=complex)
+            #antenna positions
+            ants = lofarStation.antField.antpos[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+            if 'elem' in fDict: #update the antenna positions if there is an element string
+                if lofarStation.deltas is None:
+                    print 'Warning: HBA element string found, but HBADeltas file is missing, your image is probably not going to make sense'
+                else:
+                    print 'Updating antenna positions with HBA element deltas'
+                    for aid in np.arange(ants.shape[0]):
+                        delta = lofarStation.deltas[int(fDict['elem'][aid], 16)]
+                        delta = np.array([delta, delta])
+                        ants[aid] += delta
+            nants = ants.shape[0]
+            print 'NANTENNAS:', nants
+
+            #frequency information
+            nchan = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['nchan']
+            bw = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['bw']
+            df = bw/nchan
+            freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset']
+            print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
+
+            #get correlation matrix for subbands selected
+            npols = 2
+            nantpol = nants * npols
+            print 'Reading in visibility data file ...',
+            if fDict['fmt']=='acc':
+                tDeltas = [] #subband timestamp deltas from the end of file
+                corrMatrix = np.fromfile(visFn, dtype='complex').reshape(nchan, nantpol, nantpol) #read in the complete correlation matrix
+                sbCorrMatrix = np.zeros((sbs.shape[0], nantpol, nantpol), dtype=complex)
+                for sbIdx, sb in enumerate(sbs):
+                    sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
+
+                    #correct the time due to subband stepping
+                    tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
+                    rem = tOffset - int(tOffset) #subsecond remainder
+                    tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
+
+            elif fDict['fmt']=='xst':
+                corrMatrix = np.fromfile(visFn, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
+                sbCorrMatrix = corrMatrix
+                tDeltas = [datetime.timedelta(0, 0)] #no time offset
+
+            print 'done'
+            print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
+            
+            ##TODO: get working correctly
+            ##read cal file if included and apply agin solutions
+            #if not (opts.calfile is None):
+            #    antGains = np.fromfile(opts.calfile, dtype='complex').reshape(nchan, nants, npols)
+            #    xAntGains = antGains[:,:,0]
+            #    yAntGains = antGains[:,:,1]
+            #    for sid,sb in enumerate(sbs):
+            #        calxSB=calx[sb]
+            #        calxSB=np.reshape(calxSB,(96,1))
+            #        gains=np.conj(calxSB) * np.transpose(calxSB)
+            #        polAcc=np.multiply(polAcc,gains) 
+
+            obs = ephem.Observer() #create an observer at the array location
+            obs.long = lon * (np.pi/180.)
+            obs.lat = lat * (np.pi/180.)
+            obs.elevation = float(elev)
+            obs.epoch = fDict['ts']
+            obs.date = fDict['ts']
+            obsLat = float(obs.lat) #radians
+            obsLong = float(obs.long) #radians
+            print 'Observatory:', obs
+
+            #get the UVW and visibilities for the different subbands
+            uvw = None
+            xxVis = None
+            xxVis = None
+            xxVis = None
+            xxVis = None
+            print sbs
             for sbIdx, sb in enumerate(sbs):
-                sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
+                obs.epoch = fDict['ts'] - tDeltas[sbIdx]
+                obs.date = fDict['ts'] - tDeltas[sbIdx]
 
-                #correct the time due to subband stepping
-                tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
-                rem = tOffset - int(tOffset) #subsecond remainder
-                tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
+                #in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
+                LSTangle = obs.sidereal_time() #radians
+                print 'LST:',  LSTangle
+                rotMatrix = np.array([[np.cos(LSTangle), -1.*np.sin(LSTangle), 0.],
+                                      [np.sin(LSTangle), np.cos(LSTangle),     0.],
+                                      [0.,               0.,                   1.]]) #rotate about the z-axis
 
-        elif fDict['fmt']=='xst':
-            corrMatrix = np.fromfile(visFile, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
-            sbCorrMatrix = corrMatrix
-            tDeltas = [datetime.timedelta(0, 0)] #no time offset
+                #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
+                xyz = np.dot(ants[:,0,:], rotMatrix)
 
-        print 'done'
-        print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
-        
-        ##TODO: get working correctly
-        ##read cal file if included and apply agin solutions
-        #if not (opts.calfile is None):
-        #    antGains = np.fromfile(opts.calfile, dtype='complex').reshape(nchan, nants, npols)
-        #    xAntGains = antGains[:,:,0]
-        #    yAntGains = antGains[:,:,1]
-        #    for sid,sb in enumerate(sbs):
-        #        calxSB=calx[sb]
-        #        calxSB=np.reshape(calxSB,(96,1))
-        #        gains=np.conj(calxSB) * np.transpose(calxSB)
-        #        polAcc=np.multiply(polAcc,gains) 
+                repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
+                uu = SWHT.util.vectorize(repxyz[:,:,0] - repxyz[:,:,0].T)
+                vv = SWHT.util.vectorize(repxyz[:,:,1] - repxyz[:,:,1].T)
+                ww = SWHT.util.vectorize(repxyz[:,:,2] - repxyz[:,:,2].T)
+                if uvw is None: uvw = np.vstack((uu, vv, ww)).T
+                else: uvw = np.dstack((uvw, np.vstack((uu, vv, ww)).T))
 
-        obs = ephem.Observer() #create an observer at the array location
-        obs.long = lon * (np.pi/180.)
-        obs.lat = lat * (np.pi/180.)
-        obs.elevation = float(elev)
-        obs.epoch = fDict['ts']
-        obs.date = fDict['ts']
-        obsLat = float(obs.lat) #radians
-        obsLong = float(obs.long) #radians
-        print 'Observatory:', obs
+                #split up polarizations, vectorize the correlation matrix, and drop the lower triangle
+                if xxVis is None: #assume xyVis, yxVis, yyVis are also None
+                    xxVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 0::2]).T
+                    xyVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 1::2]).T
+                    yxVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 0::2]).T
+                    yyVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 1::2]).T
+                else:
+                    xxVis = np.vstack((xxVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 0::2]))).T
+                    xyVis = np.vstack((xyVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 1::2]))).T
+                    yxVis = np.vstack((yxVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 0::2]))).T
+                    yyVis = np.vstack((yyVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 1::2]))).T
 
-        #get the UVW and visibilities for the different subbands
-        uvw = None
-        xxVis = None
-        xxVis = None
-        xxVis = None
-        xxVis = None
-        print sbs
-        for sbIdx, sb in enumerate(sbs):
-            obs.epoch = fDict['ts'] - tDeltas[sbIdx]
-            obs.date = fDict['ts'] - tDeltas[sbIdx]
+            #add visibilities to previously processed files
+            xxVisComb = np.concatenate((xxVisComb, xxVis))
+            xyVisComb = np.concatenate((xyVisComb, xyVis))
+            yxVisComb = np.concatenate((yxVisComb, yxVis))
+            yyVisComb = np.concatenate((yyVisComb, yyVis))
+            uvwComb = np.concatenate((uvwComb, uvw))
 
-            #in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
-            LSTangle = obs.sidereal_time() #radians
-            print 'LST:',  LSTangle
-            rotMatrix = np.array([[np.cos(LSTangle), -1.*np.sin(LSTangle), 0.],
-                                  [np.sin(LSTangle), np.cos(LSTangle),     0.],
-                                  [0.,               0.,                   1.]]) #rotate about the z-axis
+            ##uv coverage plot
+            #plt.plot(uvw[:,0,:], uvw[:,1,:], '.')
+            #plt.show()
 
-            #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
-            xyz = np.dot(ants[:,0,:], rotMatrix)
+        #TODO: MS need to be rotated to accomidate multiple snapshots
+        elif fDict['fmt']=='ms': #MS-based visibilities
+            decomp = True
 
-            repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
-            uu = SWHT.util.vectorize(repxyz[:,:,0] - repxyz[:,:,0].T)
-            vv = SWHT.util.vectorize(repxyz[:,:,1] - repxyz[:,:,1].T)
-            ww = SWHT.util.vectorize(repxyz[:,:,2] - repxyz[:,:,2].T)
-            if uvw is None: uvw = np.vstack((uu, vv, ww)).T
-            else: uvw = np.dstack((uvw, np.vstack((uu, vv, ww)).T))
+            fDict['sb'] = sbs
 
-            #split up polarizations, vectorize the correlation matrix, and drop the lower triangle
-            if xxVis is None: #assume xyVis, yxVis, yyVis are also None
-                xxVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 0::2]).T
-                xyVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 1::2]).T
-                yxVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 0::2]).T
-                yyVis = SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 1::2]).T
-            else:
-                xxVis = np.vstack((xxVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 0::2]))).T
-                xyVis = np.vstack((xyVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 0::2, 1::2]))).T
-                yxVis = np.vstack((yxVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 0::2]))).T
-                yyVis = np.vstack((yyVis, SWHT.util.vectorize(sbCorrMatrix[sbIdx, 1::2, 1::2]))).T
+            MS = pt.table(visFn, readonly=True)
+            data_column = opts.column.upper()
+            uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
+            vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
+            vis = vis[:,fDict['sb'],:] #select a single subband
+            MS.close()
 
-        ##uv coverage plot
-        #plt.plot(uvw[:,0,:], uvw[:,1,:], '.')
-        #plt.show()
+            #lat/long/lst information
+            SRC = pt.table(visFn + '/SOURCE')
+            direction = SRC.col('DIRECTION').getcol()
+            obsLat = direction[0,1]
+            obsLong = direction[0,0] #TODO: this needs to be properly updated
+            LSTangle = direction[0,0]
+            SRC.close()
+            print obsLat*180./np.pi, obsLong*180./np.pi
+            exit()
 
-    #TODO: MS need to be rotated to accomidate multiple snapshots
-    #TODO: obslong, obslat
-    elif fDict['fmt']=='ms': #MS-based visibilities
-        decomp = True
+            #freq information, convert uvw coordinates
+            SW = pt.table(visFn + '/SPECTRAL_WINDOW')
+            freqs = SW.col('CHAN_FREQ').getcol()[0, sbs][np.newaxis] # [1, nchan]
+            #convert (u,v,w) from metres to wavelengths
+            uu = np.dot(uvw[:,0][np.newaxis].T, freqs)
+            vv = np.dot(uvw[:,1][np.newaxis].T, freqs)
+            ww = np.dot(uvw[:,2][np.newaxis].T, freqs)
+            uvw = np.dstack((uu, vv, ww)) / cc
+            uvw = np.transpose(uvw, (0, 2, 1))
+            print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
+            SW.close()
+            freqs = freqs.T
 
-        fDict['sb'] = sbs
-        obsLong = 0.
-        obsLat = 0.
-        LSTangle = 0.
+            #split up polarizations
+            xxVis = vis[:,:,0] 
+            xyVis = vis[:,:,1]
+            yxVis = vis[:,:,2]
+            yyVis = vis[:,:,3]
 
-        MS = pt.table(visFile, readonly=True)
-        data_column = opts.column.upper()
-        uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
-        vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
-        vis = vis[:,fDict['sb'],:] #select a single subband
-        MS.close()
+            ##uv coverage plot
+            #plt.plot(uvw[:,0], uvw[:,1], '.')
+            #plt.show()
 
-        #freq information, convert uvw coordinates
-        SW = pt.table(visFile + '/SPECTRAL_WINDOW')
-        freqs = SW.col('CHAN_FREQ').getcol()[0, sbs][np.newaxis] # [1, nchan]
-        #convert (u,v,w) from metres to wavelengths
-        uu = np.dot(uvw[:,0][np.newaxis].T, freqs)
-        vv = np.dot(uvw[:,1][np.newaxis].T, freqs)
-        ww = np.dot(uvw[:,2][np.newaxis].T, freqs)
-        uvw = np.dstack((uu, vv, ww)) / cc
-        uvw = np.transpose(uvw, (0, 2, 1))
-        print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
-        SW.close()
-        freqs = freqs.T
+        elif fDict['fmt']=='pkl':
+            print 'Loading Image Coefficients file:', visFn
+            coeffDict = SWHT.fileio.readCoeffPkl(visFn)
+            iImgCoeffs = coeffDict['coeffs']
+            LSTangle = coeffDict['lst']
+            obsLong = coeffDict['phs'][0]
+            obsLat = coeffDict['phs'][1]
+            decomp = False
+        else:
+            print 'ERROR: unknown data format, exiting'
+            exit()
 
-        #split up polarizations
-        xxVis = vis[:,:,0] 
-        xyVis = vis[:,:,1]
-        yxVis = vis[:,:,2]
-        yyVis = vis[:,:,3]
-
-        ##uv coverage plot
-        #plt.plot(uvw[:,0], uvw[:,1], '.')
-        #plt.show()
-
-    elif fDict['fmt']=='pkl':
-        print 'Loading Image Coefficients file:', visFile
-        coeffDict = SWHT.fileio.readCoeffPkl(visFile)
-        iImgCoeffs = coeffDict['coeffs']
-        LSTangle = coeffDict['lst']
-        obsLong = coeffDict['phs'][0]
-        obsLat = coeffDict['phs'][1]
-        decomp = False
-    else:
-        print 'ERROR: unknown data format, exiting'
-        exit()
-    
     #decompose the input visibilities into spherical harmonics visibility coefficeints
     if decomp:
         #remove auto-correlations, by default keep them in as they help with the decomposition
         print 'AUTO-CORRELATIONS:', opts.autos
         if opts.autos:
-            autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
-            xxVis[autoIdx] = 0.
-            xyVis[autoIdx] = 0.
-            yxVis[autoIdx] = 0.
-            yyVis[autoIdx] = 0.
+            autoIdx = np.argwhere(uvwComb[:,0]**2. + uvwComb[:,1]**2. + uvwComb[:,2]**2. == 0.)
+            xxVisComb[autoIdx] = 0.
+            xyVisComb[autoIdx] = 0.
+            yxVisComb[autoIdx] = 0.
+            yyVisComb[autoIdx] = 0.
 
         #prepare for SWHT
         print 'Performing Spherical Wave Harmonic Transform'
         print 'LMAX:', opts.lmax
         #TODO: only doing total intensity right now
-        iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVis+yyVis, uvw, freqs, lmax=opts.lmax, lmin=opts.lmin)
+        iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVisComb+yyVisComb, uvwComb, freqs, lmax=opts.lmax, lmin=opts.lmin)
 
         #save image coefficients to file
         if opts.ocoeffs is None: outCoeffPklFn = 'tempCoeffs.pkl'
