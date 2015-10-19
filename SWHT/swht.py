@@ -211,7 +211,7 @@ def make3Dimage(coeffs, dim=[64, 64]):
             img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi, theta) #TODO: a slow call
     print 'done'
 
-    return img, phi, np.pi - theta #flip theta values
+    return img, 2.*np.pi - phi, np.pi - theta #flip theta and phi values
 
 #TODO: makeHEALPix: masking
 def makeHEALPix(coeffs, nside=64):
@@ -222,6 +222,8 @@ def makeHEALPix(coeffs, nside=64):
     hpIdx = np.arange(hp.nside2npix(nside)) #create an empty HEALPix map
     hpmap = np.zeros((hp.nside2npix(nside)), dtype=complex) #HEALPix ids
     theta, phi = hp.pix2ang(nside, hpIdx)
+    theta = np.pi - theta #flip theta values
+    phi = 2.*np.pi - phi #flip phi values
 
     lmax = coeffs.shape[0]
     print 'L:',

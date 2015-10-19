@@ -3,7 +3,7 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: Multiple LOFAR/MS files: ACC, XST, MS
+#TODO: Multiple LOFAR/MS files: MS
 #TODO: 3D, HEALPix mask
 #TODO: apply LOFAR gain solutions
 
@@ -76,6 +76,11 @@ if __name__ == '__main__':
     yxVisComb = np.array([])
     yyVisComb = np.array([])
     uvwComb = np.array([]).reshape(0,3)
+
+    #from mpl_toolkits.mplot3d import Axes3D
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #clr = ['r', 'g', 'b', 'k', 'y', 'm']
 
     #get filenames to image
     visFiles = args
@@ -180,8 +185,13 @@ if __name__ == '__main__':
                 #in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
                 LSTangle = obs.sidereal_time() #radians
                 print 'LST:',  LSTangle
-                rotMatrix = np.array([[np.cos(LSTangle), -1.*np.sin(LSTangle), 0.],
-                                      [np.sin(LSTangle), np.cos(LSTangle),     0.],
+                rotAngle = float(LSTangle) - float(obs.long) #adjust LST to that of the Observatory longitutude to make the LST that at Greenwich
+                #to be honest, the next two lines change the LST to make the images come out but i haven't worked out the coordinate transforms, so for now these work without justification
+                rotAngle += np.pi
+                rotAngle *= -1
+                #Rotation matrix for antenna positions
+                rotMatrix = np.array([[np.cos(rotAngle), -1.*np.sin(rotAngle), 0.],
+                                      [np.sin(rotAngle), np.cos(rotAngle),     0.],
                                       [0.,               0.,                   1.]]) #rotate about the z-axis
 
                 #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
@@ -212,6 +222,8 @@ if __name__ == '__main__':
             yxVisComb = np.concatenate((yxVisComb, yxVis))
             yyVisComb = np.concatenate((yyVisComb, yyVis))
             uvwComb = np.concatenate((uvwComb, uvw))
+
+            #ax.scatter(uvw[:,0], uvw[:,1], uvw[:,2], c=clr[vid])
 
             ##uv coverage plot
             #plt.plot(uvw[:,0,:], uvw[:,1,:], '.')
@@ -274,6 +286,13 @@ if __name__ == '__main__':
         else:
             print 'ERROR: unknown data format, exiting'
             exit()
+
+    #from mpl_toolkits.mplot3d import Axes3D
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #ax.scatter(uvwComb[:,0], uvwComb[:,1], uvwComb[:,2])
+    #plt.show()
+    #exit()
 
     #decompose the input visibilities into spherical harmonics visibility coefficeints
     if decomp:
@@ -358,15 +377,30 @@ if __name__ == '__main__':
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
-        coeffImg = np.hstack((iImgCoeffs[:,:,0].real, iImgCoeffs.imag[:,:,0]))
-        coeffImg[0,0] = 0.
-        plt.imshow(coeffImg, interpolation='nearest')
+        iImgCoeffs[0,0] = 0 #zero out DC offset component
+
+        plt.subplot(221)
+        plt.title('Real Components')
+        plt.imshow(iImgCoeffs.real, interpolation='nearest')
         plt.colorbar()
 
-        #save complex image to pickle file
-        print 'Writing image to file %s ...'%outFn,
-        SWHT.fileio.writeSWHTImgPkl(outFn, coeffImg, fDict, mode='coeffs')
-        print 'done'
+        plt.subplot(222)
+        plt.title('Imaginary Components')
+        plt.imshow(iImgCoeffs.real, interpolation='nearest')
+        plt.imshow(iImgCoeffs.imag, interpolation='nearest')
+        plt.colorbar()
+
+        plt.subplot(223)
+        plt.title('Amplitude (dB)')
+        plt.imshow(iImgCoeffs.real, interpolation='nearest')
+        plt.imshow(10.*np.log10(np.abs(iImgCoeffs)), interpolation='nearest')
+        plt.colorbar()
+
+        plt.subplot(224)
+        plt.title('Phase')
+        plt.imshow(iImgCoeffs.real, interpolation='nearest')
+        plt.imshow(np.angle(iImgCoeffs), interpolation='nearest')
+        plt.colorbar()
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay:
