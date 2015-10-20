@@ -45,6 +45,7 @@ def spharm(l, m, theta, phi):
         return scipy.special.sph_harm(n=l, m=m, theta=phi, phi=theta) #scipy uses non-standard notation
 
 #TODO: with MS all subbands have the same r, theta, phi, so the subband for loop is not needed, add an option
+#TODO: Ylm uses a recurrrence relation, since we always compute al Ylm up to some lmax we could retain all Ylm up to lmax instead of recomputing everytime
 def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     """Compute the spherical wave harmonics visibility coefficients, Eq. 16 of Carozzi 2015
     lmax: positive int, maximum spherical harmonic l number
@@ -55,7 +56,7 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
 
     returns: [lmax+1, 2*lmax+1, nfreq] array of coefficients, only partially filled, see for loops in this function
     """
-    #vis *= 2. #Treat the conjugate baslines as doubling the nonconjugate visibilities
+    #vis *= 2. #Treat the conjugate baslines as doubling the non-conjugate visibilities
 
     nsbs = vis.shape[1]
     vislm = np.zeros((lmax+1, 2*lmax+1, nsbs), dtype=complex)
@@ -70,9 +71,9 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
             for m in np.arange(-1*l, l+1):
                 #Compute visibility spherical harmonic coefficients according to SWHT, i.e. multiply visibility by spherical wave harmonics for each L&M and sum over all baselines.
                 #Note that each non-zero baseline is effectively summed twice in the precedi(In the MNRAS letter image the NZ baselines were only weighted once, i.e. their conjugate baselines were not summed.)
-                #spharmlm = np.repeat(np.conj(Ylm.Ylm(l, m, phi[:, sbIdx:sbIdx+1], theta[:, sbIdx:sbIdx+1])), nsbs, axis=1) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: spharm is by far the slowest call
-                spharmlm = np.conj(Ylm.Ylm(l, m, phi[:, sbIdx:sbIdx+1], theta[:, sbIdx:sbIdx+1])) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: spharm is by far the slowest call
-                vislm[l, l+m, sbIdx] = ((2.*(k[sbIdx,0]**2.))/np.pi) * np.sum(vis[:,sbIdx:sbIdx+1] * sphBj(l, kr) * spharmlm, axis=0)[0] #sum visibilites of same obs frequency
+                #spharmlm = np.repeat(np.conj(Ylm.Ylm(l, m, phi[:, sbIdx:sbIdx+1], theta[:, sbIdx:sbIdx+1])), nsbs, axis=1) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency
+                spharmlm = np.conj( Ylm.Ylm( l, m, phi[:, sbIdx:sbIdx+1], theta[:, sbIdx:sbIdx+1])) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, TODO: a slow call
+                vislm[l, l+m, sbIdx] = ((2. * (k[sbIdx,0]**2.)) / np.pi) * np.sum( vis[:,sbIdx:sbIdx+1] * sphBj(l, kr) * spharmlm, axis=0)[0] #sum visibilites of same obs frequency
     
     #Average coefficients in freqeuncy, TODO: there is probably something else to do here
     vislm = np.mean(vislm, axis=2)

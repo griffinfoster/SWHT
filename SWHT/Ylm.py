@@ -16,7 +16,7 @@ def xfact(m):
     return res
 
 def lplm_n(l, m, x):
-    # associated legendre polynoms normalized as in Ylm
+    # associated legendre polynomials normalized as in Ylm, from Numerical Recipes 6.7
     l,m = int(l),int(m)
     assert 0<=m<=l and np.all(np.abs(x)<=1.)
 
