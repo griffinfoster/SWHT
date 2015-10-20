@@ -19,6 +19,8 @@ if __name__ == '__main__':
         help='Scale mode: H(histogram), I(linear), L(log), S(sqrt); default: I')
     o.add_option('-p', '--proj', dest='proj', default='CG',
         help='Projection of map, E(cliptic), G(alactic), C(equatorial), default: CG')
+    o.add_option('-v', '--visu', dest='visu', default='moll',
+        help='Visualization projection: Mollweide(moll), Cartesian(cart), Orthographic(ortho) default: moll')
     o.add_option('-t', '--title', dest='title', default='',
         help='Map title, default: Sky Map')
     o.add_option('-s', '--savefig', dest='savefig', default=None,
@@ -38,9 +40,11 @@ if __name__ == '__main__':
     o.add_option('--cbar', dest='cbar', default=True, action='store_false',
         help='Disable colorbar')
     o.add_option('--fill', dest='fill', default=False, action='store_true',
-        help='FIll UNSEEN/NaN values with zeros')
+        help='Fill UNSEEN/NaN values with zeros')
     o.add_option('--rot', dest='rot', default=None, type='str',
         help='Rotate the map such that the center is at (lon,lat)')
+    o.add_option('--size', dest='xsize', default=800, type='int',
+        help='Figure size, pick around 5000 for a large figure, default: 800')
     opts, args = o.parse_args(sys.argv[1:])
 
     cbar = opts.cbar
@@ -51,7 +55,7 @@ if __name__ == '__main__':
         rot = (float(lon),float(lat),0.)
     else: rot = None
 
-    xsize = 5000
+    xsize = opts.xsize
 
     m = None
     w = None
@@ -98,13 +102,20 @@ if __name__ == '__main__':
     fig = plt.figure(1, figsize=(12,8))
 
     if opts.mode.lower()=='h':
-        hp.mollview(m, coord=coord_proj, norm='hist', max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
+        norm = 'hist'
     elif opts.mode.lower()=='i':
-        hp.mollview(m, coord=coord_proj, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
+        norm = None
     elif opts.mode.lower()=='l':
-        hp.mollview(m, coord=coord_proj, norm='log', cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
+        norm = 'log'
     elif opts.mode.lower()=='s':
-        hp.mollview(m, coord=coord_proj, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize)
+        norm = None
+
+    if opts.visu.lower().startswith('moll'): #Mollweide projection
+        hp.mollview(m, coord=coord_proj, norm=norm, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
+    elif opts.visu.lower().startswith('cart'): #Cartesian
+        hp.cartview(m, coord=coord_proj, norm=norm, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
+    elif opts.visu.lower().startswith('ortho'): #Orthographic
+        hp.orthview(m, coord=coord_proj, norm=norm, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
 
     #set grid lines
     hp.graticule(dpar=5, dmer=5)

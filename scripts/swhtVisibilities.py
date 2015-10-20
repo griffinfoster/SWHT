@@ -377,7 +377,6 @@ if __name__ == '__main__':
     elif opts.imageMode.startswith('heal'): #plot healpix and save healpix file using the opts.pkl name
         print 'Generating HEALPix Image with %i NSIDE'%(opts.pixels)
         m = SWHT.swht.makeHEALPix(iImgCoeffs, nside=opts.pixels)
-        #hp.mollview(np.abs(m))
 
         #save complex image to HEALPix file
         print 'Writing image to file %s ...'%outFn,
