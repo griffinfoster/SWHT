@@ -295,6 +295,15 @@ if __name__ == '__main__':
             print 'ERROR: unknown data format, exiting'
             exit()
 
+    #compute the ideal l_max given the average solid angle angular resolution of an l-mode is Omega ~ 4pi / 2l steradian, and if the PSF is circular theta ~ pi / l radians
+    blLen = np.sqrt(uvwComb[:,0,:]**2. + uvwComb[:,1,:]**2. + uvwComb[:,2,:]**2.) #compute the baseline lengths (in meters)
+    maxBl = np.max(blLen) #maximum baseline length (in meters)
+    meanWl = cc / np.mean(freqs) #mean observing wavelength
+    maxRes = 1.22 * meanWl / maxBl
+    print 'MAXIMUM RES: %f (radians) %f (deg)'%(maxRes, maxRes * (180. / np.pi))
+    idealLmax = int(np.pi / maxRes)
+    print 'SUGGESTED L_MAX: %i, %i (oversample 3), %i (oversample 5)'%(idealLmax, idealLmax*3, idealLmax*5)
+
     #from mpl_toolkits.mplot3d import Axes3D
     #fig = plt.figure()
     #ax = fig.add_subplot(111, projection='3d')
