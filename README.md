@@ -2,19 +2,19 @@ SWHT
 ===
 
 Created: 30.09.15  
-Last Modified: 14.10.15  
+Last Modified: 21.10.15  
 Contact: griffin.foster@gmail.com  
 
-A python package for generating radio interferometry images from LOFAR station ACC and XST files, and from widefield, low-frequency measurement sets (e.g. PAPER) using a standard Fourier Transform and with a Spherical Wave Harmonic Transform ([Imaging on a Sphere with Interferometers: the Spherical Wave Harmonic Transform](http://arxiv.org/abs/1504.04485)).
+A python package for generating radio interferometry images from LOFAR station ACC and XST files, and from widefield, low-frequency measurement sets (e.g. PAPER) using a Spherical Wave Harmonic Transform ([Imaging on a Sphere with Interferometers: the Spherical Wave Harmonic Transform](http://arxiv.org/abs/1504.04485)) and a standard 2D Fourier Transform.
 
 #### Required Python Modules
 
 * matplotlib (1.3.1)
 * numpy (1.8.2)
-* scipy (0.13.3) [for special functions]
-* pyrap (1.1.0) [interface to measurement set files]
-* ephem (3.7.5.2) [for creating observatories]
-* healpy (1.9.0) [for outputting HEALPIX maps]
+* scipy (0.13.3) [special functions]
+* [pyrap](https://code.google.com/p/pyrap/) (1.1.0) [Measurement Set interface]
+* [ephem](http://rhodesmill.org/pyephem/) (3.7.5.2) [observatories]
+* [healpy](https://healpy.readthedocs.org/en/latest/) (1.9.0) [HEALPIX interface]
 
 #### Install
 
@@ -24,21 +24,32 @@ While developing it is useful to do a developer install:
 sudo python setup.py develop
 ```
 
-Otherwise, the standard install will work:
+Otherwise, the standard install will install the package:
 
 ```
 sudo python setup.py install  
 ```
 
+NOTE: the scripts will not be installed globally.
+
+#### Scripts
+
+* ftVisibilities.py: 2D Fourier Transform of LOFAR ACC, XST files and Measurement Sets  
+* swhtVisibilities.py: Spherical Wave Harmonic Transform of LOFAR ACC, XST files and Measurement Sets  
+* imageSWHTcoeffs.py: generate images and HEALPIX maps from pre-computed SWHT image coefficients  
+* plotHealpix.py: general HEALPIX plotting script
+
 #### Examples
+
+For any script, use the '-h' argument to print out help on available input options.
 
 ```
 ./ftVisibilities.py ../examples/20150915_191137_rcu5_sb60_int10_dur10_elf0f39fe2034ea85fc02b3cc1544863053b328fd83291e880cd0bf3c3d3a50a164a3f3e0c070c73d073f4e43849c0e93b_xst.dat --station=SE607 -p 128 --conv=prolate --autos
 ./ftVisibilities.py ../examples/20150607_122433_acc_512x192x192.dat -s 300 --station=SE607 --conv=gauss -p 64
 ./ftVisibilities.py ../examples/zen.2455819.69771.uvcRREM.MS -s 40 --conv=fast -p 256
+
 ./swhtVisibilities.py --station=UK608 ../examples/20120513_052251_acc_512x192x192.dat -s 299 -l 24
 ./swhtVisibilities.py --station=SE607 ../examples/20150607_122433_acc_512x192x192.dat -s 299 -l 24
 ./swhtVisibilities.py --station=SE607 ../examples/20150915_191137_rcu5_sb60_int10_dur10_elf0f39fe2034ea85fc02b3cc1544863053b328fd83291e880cd0bf3c3d3a50a164a3f3e0c070c73d073f4e43849c0e93b_xst.dat -s 100 -l 32
 ./swhtVisibilities.py --station=UK608 tempCoeffs.pkl -I coeff
 ```
-

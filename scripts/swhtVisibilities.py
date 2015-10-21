@@ -3,7 +3,6 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: Multiple files: MS
 #TODO: 3D, HEALPix mask
 #TODO: apply LOFAR gain solutions
 
@@ -222,7 +221,6 @@ if __name__ == '__main__':
             #plt.plot(uvw[:,0,:], uvw[:,1,:], '.')
             #plt.show()
 
-        #TODO: MS need to be rotated to accomidate multiple snapshots
         elif fDict['fmt']=='ms': #MS-based visibilities
             decomp = True
 
