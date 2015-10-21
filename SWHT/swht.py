@@ -21,7 +21,7 @@ def sphBj(l, r):
     """spherical Bessel function of first kind
     l: int, order
     r: positive float array, radius"""
-    jl = np.sqrt(np.pi/(2.*r)) * scipy.special.jv( l+0.5, r)
+    jl = np.sqrt(np.pi/(2.*r)) * scipy.special.jv( l+0.5, r) #throws warning when r=0, accounted for below
 
     rorgInd = np.argwhere(r == 0.)
     if len(rorgInd) > 0:
@@ -46,6 +46,7 @@ def spharm(l, m, theta, phi):
 
 #TODO: with MS all subbands have the same r, theta, phi, so the subband for loop is not needed, add an option
 #TODO: Ylm uses a recurrrence relation, since we always compute al Ylm up to some lmax we could retain all Ylm up to lmax instead of recomputing everytime
+#TODO: pre-compute bessel and Ylm functions
 def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     """Compute the spherical wave harmonics visibility coefficients, Eq. 16 of Carozzi 2015
     lmax: positive int, maximum spherical harmonic l number
@@ -57,6 +58,7 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     returns: [lmax+1, 2*lmax+1, nfreq] array of coefficients, only partially filled, see for loops in this function
     """
     #vis *= 2. #Treat the conjugate baslines as doubling the non-conjugate visibilities
+    #TODO: pre-compute bessel and Ylm functions
 
     nsbs = vis.shape[1]
     vislm = np.zeros((lmax+1, 2*lmax+1, nsbs), dtype=complex)
@@ -80,6 +82,30 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     print 'done'
 
     return vislm
+
+#TODO: test
+def computeVisSamples(vislm, k, r, theta, phi):
+    """The reverse function to computeVislm, compute the visibilities for give set of (r, theta, phi) from vislm coefficients, Eq. 9 pf Carozzi 2015
+    vislm: complex array, spherical wave harmonics visibility coefficients computed from computeVislm()
+    k: [N, 1] float array, wave number, observing frequencies/c (1/meters)
+    r, theta, phi: [Q, N] float arrays of visibility positions transformed from (u,v,w) positions, r (meters)
+    returns: vis [Q, N] complex array of visibilities
+    """
+    vis = np.zeros(r.shape, dtype='complex')
+    #TODO: pre-compute bessel and Ylm functions
+
+    nsbs = r.shape[1]
+    for sbIdx in range(nsbs): #loop over frequency subbands
+        kr = r[:, sbIdx:sbIdx+1] * k[sbIdx, 0] #compute the radii in wavelengths for each visibility sample
+
+        print 'L(%i):'%sbIdx,
+        for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
+            print l,
+            sys.stdout.flush()
+            for m in np.arange(-1*l, l+1):
+                vis += vislm[l, l+m] * sphBj(l, kr) * Ylm.Ylm( l, m, phi[:, sbIdx:sbIdx+1], theta[:, sbIdx:sbIdx+1])
+
+    return vis
 
 def computeblm(vislm, reverse=False):
     """Compute the spherical wave harmonics brightness coefficients from the spherical wave harmonics visibility coefficients, Eq. 11 of Carozzi 2015
