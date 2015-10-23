@@ -40,7 +40,7 @@ def spharm(l, m, theta, phi):
     """
     #for some reason, if m<0 the call is much slower, but Y_l,-m is the complex conjugate of -1.*Y_l,m
     if m<0:
-        return -1.*np.conjugate(scipy.special.sph_harm(n=l, m=np.abs(m), theta=phi, phi=theta)) #scipy uses non-standard notation
+        return (-1.)**m * np.conjugate(scipy.special.sph_harm(n=l, m=np.abs(m), theta=phi, phi=theta)) #scipy uses non-standard notation
     else:
         return scipy.special.sph_harm(n=l, m=m, theta=phi, phi=theta) #scipy uses non-standard notation
 
@@ -78,85 +78,6 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     print 'done'
 
     return vislm
-
-##TODO: Ylm uses a recurrrence relation, since we always compute al Ylm up to some lmax we could retain all Ylm up to lmax instead of recomputing everytime
-##TODO: account for lmin
-#def computeRecursiveVislm(lmax, k, r, theta, phi, vis, lmin=0):
-#    """Compute the spherical wave harmonics visibility coefficients using a recursive operation so as to be faster than computeVislm(), Eq. 16 of Carozzi 2015
-#    lmax: positive int, maximum spherical harmonic l number
-#    lmin: positive int, minimum spherical harmonic l number, usually 0
-#    k: [N, 1] float array, wave number, observing frequencies/c (1/meters)
-#    r, theta, phi: [Q, N] float arrays of visibility positions transformed from (u,v,w) positions, r (meters)
-#    vis: [Q, N] complex array, observed visibilities
-#
-#    returns: [lmax+1, 2*lmax+1, nfreq] array of coefficients, only partially filled, see for loops in this function
-#    """
-#    #vis *= 2. #Treat the conjugate baslines as doubling the non-conjugate visibilities
-#
-#    nsbs = vis.shape[1]
-#    vislm = np.zeros((lmax+1, 2*lmax+1, nsbs), dtype=complex)
-#    kr = r * k.flatten() #compute the radii in wavelengths for each visibility sample
-#
-#    #setup Legendre polynomial memory variables
-#    plminus2 = None
-#    plminus1 = None
-#    print 'L:',
-#    for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
-#        print l,
-#        sys.stdout.flush()
-#        jvVals = np.reshape(sphBj(l, kr.flatten()), kr.shape) #compute Bessel function radius values
-#
-#        if l == 0: #initial values for recursion
-#            #l: 0 m: 0
-#            plminus2 = np.array([ Ylm.lplm_n(0, 0, np.cos(theta)) ]) #Legendre polynomial for l=0, m=0
-#            spharmlm = np.conj( plminus2[0] )
-#            vislm[0, 0] = ((2. * (k.flatten()**2.)) / np.pi) * np.sum( vis * jvVals * spharmlm, axis=0)
-#        
-#        elif l == 1: #initial values for recursion
-#            #compute p0,1, p1,1, p-1,1
-#            plminus1 = np.array([ Ylm.lplm_n(1, 0, np.cos(theta)), Ylm.lplm_n(1, 1, np.cos(theta))] ) #Legendre polynomial for l=0, m=0,1
-#            #l: 1 m: 0
-#            spharmlm = np.conj( plminus1[0] )
-#            vislm[1, l+0] = ((2. * (k.flatten()**2.)) / np.pi) * np.sum( vis * jvVals * spharmlm, axis=0)
-#            #l: 1 m: 1
-#            spharmlm = np.conj( plminus1[1] * np.exp(1J * 1. * phi) )
-#            vislm[1, l+1] = ((2. * (k.flatten()**2.)) / np.pi) * np.sum( vis * jvVals * spharmlm, axis=0)
-#            #l: 1 m: -1
-#            spharmlm = np.conj( (-1.)**(-1.) * plminus1[1] * np.exp(1J * -1. * phi) )
-#            vislm[1, l-1] = ((2. * (k.flatten()**2.)) / np.pi) * np.sum( vis * jvVals * spharmlm, axis=0)
-#
-#        else: # l > 1
-#            print plminus1.shape
-#            #normalization factor
-#            norm = np.sqrt(2. * l + 1.) / np.sqrt(4. * np.pi)
-#            #compute pl,m for l==m
-#            m = l
-#            pmm = (-1.)**m * norm * Ylm.xfact(m) * (1. - np.cos(theta)**2.)**(m/2.)
-#            spharmlm = np.conj( pmm * np.exp(1J * m * phi) )
-#            vislm[l, l+m] = ((2. * (k.flatten()**2.)) / np.pi) * np.sum( vis * jvVals * spharmlm, axis=0)
-#            #compute pl,m for l==m+1
-#            m = l - 1
-#            pmm = (-1.)**m * norm * Ylm.xfact(m) * (1. - np.cos(theta)**2.)**(m/2.)
-#            pmmp1 = np.cos(theta) * pmm * np.sqrt(2.*m + 1)
-#            spharmlm = np.conj( pmmp1 * np.exp(1J * m * phi) )
-#            vislm[l, l+m] = ((2. * (k.flatten()**2.)) / np.pi) * np.sum( vis * jvVals * spharmlm, axis=0)
-#            
-#
-#        #   compute pmm
-#        #   compute pmm+1
-#        #   compute pml for m+2 up to l using bootsrap
-#        #   compute negative m values
-#        #   update vislm
-#        #   update pl-1 and pl-2 values
-#        #
-#        #spharmlm = np.conj( Ylm.Ylm( l, m, phi[:, sbIdx:sbIdx+1], theta[:, sbIdx:sbIdx+1])) #spherical harmonics only needed to be computed once for all baselines, independent of observing frequency, shape:[Q, 1]
-#        #vislm[l, l+m, sbIdx] = ((2. * (k[sbIdx,0]**2.)) / np.pi) * np.sum( vis[:,sbIdx:sbIdx+1] * sphBj(l, kr) * spharmlm, axis=0)[0] #sum visibilites of same obs frequency
-#
-#    #Average coefficients in freqeuncy, TODO: there is probably something else to do here
-#    vislm = np.mean(vislm, axis=2)
-#    print 'done'
-#
-#    return vislm
 
 #TODO: test
 def computeVisSamples(vislm, k, r, theta, phi):
@@ -432,5 +353,13 @@ if __name__ == "__main__":
     print blm.shape
 
     #plt.show()
+    
+    phi, theta = np.ogrid[0:2*np.pi:10j,-np.pi/2:np.pi/2:10j]
+    print "l", "m", "max|Ylm-sph_harm|" 
+    for l in np.arange(0,10):
+        for m in np.arange(-l,l+1):
+            a = spharm(l,m,theta,phi)
+            b = scipy.special.sph_harm(m=m,n=l,theta=phi,phi=theta)
+            print l,m, np.amax(np.abs(a-b))
 
     print 'Made it through without any errors.'

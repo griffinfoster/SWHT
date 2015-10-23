@@ -31,30 +31,10 @@ def lplm_n(l, m, x):
     if l == m+1:
         return pmmp1
     for ll in xrange(m+2, l+1):
-        #print ll
         pll = (x*(2.*ll-1.)*pmmp1 - np.sqrt( (ll-1.)**2. - m**2.)*pmm)/np.sqrt(ll**2.-m**2.)
         pmm = pmmp1
         pmmp1 = pll
     return pll
-
-def lplm_n_bootstrap(l, m, x, ipmm, ipmmp1):
-    # associated legendre polynomials normalized as in Ylm, from Numerical Recipes 6.7
-    l,m = int(l),int(m)
-    assert 0<=m<=l and np.all(np.abs(x)<=1.)
-
-    if l - m < 2: #no bootstrapping
-        if m == 0:
-            pmm = np.ones_like(x)
-        else:
-            pmm = (-1.)**m * xfact(m) * (1.-x**2.)**(m/2.)
-        if l == m:
-            return pmm
-        pmmp1 = x * pmm * np.sqrt(2.*m+1.)
-        if l == m+1:
-            return pmmp1
-    else:
-    
-        return (x*(2.*(m+2)-1.)*ipmmp1 - np.sqrt( ((m+2)-1.)**2. - m**2.)*ipmm)/np.sqrt((m+2)**2.-m**2.)
 
 def Ylm(l, m, phi, theta):
     # spherical harmonics
@@ -83,53 +63,36 @@ if __name__ == "__main__":
     from scipy.misc import factorial2, factorial
     from timeit import Timer
 
-    #def ref_xfact(m):
-    #    return factorial2(2*m-1)/np.sqrt(factorial(2*m))
+    def ref_xfact(m):
+        return factorial2(2*m-1)/np.sqrt(factorial(2*m))
  
-    #print "Time: xfact(10)", Timer("xfact(10)",
-    #    "from __main__ import xfact, ref_xfact").timeit(100)
-    #print "Time: ref_xfact(10)", Timer("ref_xfact(10)",
-    #    "from __main__ import xfact, ref_xfact").timeit(100)
-    #print "Time: xfact(80)", Timer("xfact(80)",
-    #    "from __main__ import xfact, ref_xfact").timeit(100)
-    #print "Time: ref_xfact(80)", Timer("ref_xfact(80)",
-    #    "from __main__ import xfact, ref_xfact").timeit(100)
-    #
-    #print "m", "xfact", "ref_xfact" 
-    #for m in range(10) + range(80,90):
-    #    a = xfact(m)
-    #    b = ref_xfact(m)
-    #    print m, a, b 
+    print "Time: xfact(10)", Timer("xfact(10)",
+        "from __main__ import xfact, ref_xfact").timeit(100)
+    print "Time: ref_xfact(10)", Timer("ref_xfact(10)",
+        "from __main__ import xfact, ref_xfact").timeit(100)
+    print "Time: xfact(80)", Timer("xfact(80)",
+        "from __main__ import xfact, ref_xfact").timeit(100)
+    print "Time: ref_xfact(80)", Timer("ref_xfact(80)",
+        "from __main__ import xfact, ref_xfact").timeit(100)
+    
+    print "m", "xfact", "ref_xfact" 
+    for m in range(10) + range(80,90):
+        a = xfact(m)
+        b = ref_xfact(m)
+        print m, a, b 
 
-    #phi, theta = np.ogrid[0:2*np.pi:10j,-np.pi/2:np.pi/2:10j]
+    phi, theta = np.ogrid[0:2*np.pi:10j,-np.pi/2:np.pi/2:10j]
 
-    #print "Time: Ylm(1,1,phi,theta)", Timer("Ylm(1,1,phi,theta)",
-    #    "from __main__ import Ylm, sph_harm, phi, theta").timeit(10)
-    #print "Time: sph_harm(1,1,phi,theta)", Timer("sph_harm(1,1,phi,theta)",
-    #    "from __main__ import Ylm, sph_harm, phi, theta").timeit(10)
-    #
-    #print "l", "m", "max|Ylm-sph_harm|" 
-    #for l in xrange(0,5):
-    #    for m in xrange(-l,l+1):
-    #        a = Ylm(l,m,phi,theta) 
-    #        b = sph_harm(m,l,phi,theta)
-    #        print l,m, np.amax(np.abs(a-b))
+    print "Time: Ylm(1,1,phi,theta)", Timer("Ylm(1,1,phi,theta)",
+        "from __main__ import Ylm, sph_harm, phi, theta").timeit(10)
+    print "Time: sph_harm(1,1,phi,theta)", Timer("sph_harm(1,1,phi,theta)",
+        "from __main__ import Ylm, sph_harm, phi, theta").timeit(10)
 
-    xx = np.random.rand(1000, 10) * 2. - 1.
-    lmax = 2
-    pmm = None
-    pmmp1 = None
-    for l in range(lmax+1):
-        for m in range(l,-1,-1):
-            print 'l: %i, m: %i, l-m: %i'%(l,m,l-m)
-            res0 = lplm_n(l, m, xx)
-            
-            norm = np.sqrt(2. * l + 1.) / np.sqrt(4. * np.pi)
-            res1 = lplm_n_bootstrap(l, m, xx, pmm, pmmp1)
-            pmm = pmmp1
-            pmmp1 = res1
-            print res0-(norm*res1)
-
-    #bootstrap legendre start from l=m and work down to m=0
-    #if l==m or l==m+1: no bootstrap is needed
+    
+    print "l", "m", "max|Ylm-sph_harm|" 
+    for l in xrange(0,10):
+        for m in xrange(-l,l+1):
+            a = Ylm(l,m,phi,theta) 
+            b = sph_harm(m,l,phi,theta)
+            print l,m, np.amax(np.abs(a-b))
 
