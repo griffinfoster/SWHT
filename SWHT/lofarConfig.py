@@ -5,6 +5,7 @@ Functions and classes to read and parse LOFAR station configuration files
 import numpy as np
 import glob
 import os
+import struct
 
 #HARDCODED path, need to make this configurable to the module, something in setup.py?
 #StaticMetaData = '/home/griffin/sw/SWHT/SWHT/data/LOFAR/StaticMetaData/'
@@ -197,6 +198,29 @@ def relativeStationOffset(s0, s1, mode='LBA'):
     s0loc = applyRotMatrix(s0, rotMat, mode)
     s1loc = applyRotMatrix(s1, rotMat, mode)
     return np.array(s1loc-s0loc)[0][::-1]
+
+def readCalTable(fn, nants=96, nsbs=512, npols=2):
+    """Parse a LOFAR Calibration Table
+    return: [NSBS, NANTS * NPOLS] complex array, the X and Y pols are interlaced, not serial, i.e. xGains = antGains[:, 0::2] and yGains = antGains[:, 1::2]
+    """
+    fh = open(fn)
+    # Test for header record above raw data - present in newer caltables (starting 2012)
+    line = fh.readline()
+    if 'HeaderStart' in line:
+        while not 'HeaderStop' in line:
+            line = fh.readline()
+    else:  # no header present, seek to starting position
+        file.seek(0)
+
+    fmt = str(nants * npols * nsbs * 2) + 'd'
+    sz = struct.calcsize(fmt)
+    antGains = np.array( struct.unpack(fmt, fh.read(sz)) )
+    fh.close()
+
+    antGains = antGains[0::2] + 1j * antGains[1::2] #make the array complex
+    antGains.resize(nsbs, nants * npols)
+
+    return antGains
 
 if __name__ == '__main__':
     print 'Running test cases'

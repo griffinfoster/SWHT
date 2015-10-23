@@ -4,7 +4,6 @@ Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield M
 """
 
 #TODO: 3D, HEALPix mask
-#TODO: apply LOFAR gain solutions
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -81,6 +80,10 @@ if __name__ == '__main__':
     #ax = fig.add_subplot(111, projection='3d')
     #clr = ['r', 'g', 'b', 'k', 'y', 'm']
 
+    if (not (opts.station is None)) or (not (opts.ant_field is None)): #If using LOFAR data, get station information
+        lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas)
+        antGains = None #Setup variable so that the gain table isn't re-read for every file if used
+
     #get filenames to image
     visFiles = args
     for vid,visFn in enumerate(visFiles):
@@ -94,8 +97,6 @@ if __name__ == '__main__':
                 fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
                 fDict['sb'] = sbs
                 fDict['int'] = opts.int_time
-
-            lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
 
             #longitude and latitude of array
             #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
@@ -123,9 +124,16 @@ if __name__ == '__main__':
             df = bw/nchan
             freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset']
             print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
+            npols = 2
+
+            #read LOFAR Calibration Table
+            if not (opts.calfile is None):
+                if antGains is None: #read the Cal Table only once
+                    print 'Using CalTable:', opts.calfile
+                    antGains = SWHT.lofarConfig.readCalTable(opts.calfile, nants, nchan, npols)
+            else: antGains = None
 
             #get correlation matrix for subbands selected
-            npols = 2
             nantpol = nants * npols
             print 'Reading in visibility data file ...',
             if fDict['fmt']=='acc':
@@ -133,7 +141,12 @@ if __name__ == '__main__':
                 corrMatrix = np.fromfile(visFn, dtype='complex').reshape(nchan, nantpol, nantpol) #read in the complete correlation matrix
                 sbCorrMatrix = np.zeros((sbs.shape[0], nantpol, nantpol), dtype=complex)
                 for sbIdx, sb in enumerate(sbs):
-                    sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
+                    if antGains is None:
+                        sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
+                    else: #Apply Gains
+                        sbAntGains = antGains[sb][np.newaxis].T
+                        sbVisGains = np.dot(np.conjugate(sbAntGains), sbAntGains.T)
+                        sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol) #TODO: check with Tobia about CalTable order and how to apply
 
                     #correct the time due to subband stepping
                     tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
@@ -142,7 +155,12 @@ if __name__ == '__main__':
 
             elif fDict['fmt']=='xst':
                 corrMatrix = np.fromfile(visFn, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
-                sbCorrMatrix = corrMatrix
+                if antGains is None:
+                    sbCorrMatrix = corrMatrix #shape (nantpol, nantpol)
+                else: #Apply Gains
+                    sbAntGains = antGains[fDict['sb']][np.newaxis].T
+                    sbVisGains = np.dot(np.conjugate(sbAntGains), sbAntGains.T)
+                    sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol) #TODO: check with Tobia about CalTable order and how to apply
                 tDeltas = [datetime.timedelta(0, 0)] #no time offset
 
             print 'done'
