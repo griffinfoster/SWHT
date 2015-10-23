@@ -33,14 +33,14 @@ if __name__ == '__main__':
     opts, args = o.parse_args(sys.argv[1:])
 
     #get filenames to image
-    visFiles = args
-    for vid,visFn in enumerate(visFiles):
-        print 'Using %s (%i/%i)'%(visFn, vid+1, len(visFiles))
-        fDict = SWHT.fileio.parse(visFn)
+    coeffFiles = args
+    for cid,coeffFn in enumerate(coeffFiles):
+        print 'Using %s (%i/%i)'%(coeffFn, cid+1, len(coeffFiles))
+        fDict = SWHT.fileio.parse(coeffFn)
 
         if fDict['fmt']=='pkl':
-            print 'Loading Image Coefficients file:', visFn
-            coeffDict = SWHT.fileio.readCoeffPkl(visFn)
+            print 'Loading Image Coefficients file:', coeffFn
+            coeffDict = SWHT.fileio.readCoeffPkl(coeffFn)
             iImgCoeffs = coeffDict['coeffs']
             LSTangle = coeffDict['lst']
             obsLong = coeffDict['phs'][0]
@@ -112,28 +112,47 @@ if __name__ == '__main__':
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
         iImgCoeffs[0,0] = 0 #zero out DC offset component
 
-        plt.subplot(221)
+        plt.subplot(231)
         plt.title('Real Components')
         plt.imshow(iImgCoeffs.real, interpolation='nearest')
         plt.colorbar()
 
-        plt.subplot(222)
+        plt.subplot(232)
         plt.title('Imaginary Components')
         plt.imshow(iImgCoeffs.real, interpolation='nearest')
         plt.imshow(iImgCoeffs.imag, interpolation='nearest')
         plt.colorbar()
 
-        plt.subplot(223)
+        plt.subplot(234)
         plt.title('Amplitude (dB)')
         plt.imshow(iImgCoeffs.real, interpolation='nearest')
         plt.imshow(10.*np.log10(np.abs(iImgCoeffs)), interpolation='nearest')
         plt.colorbar()
 
-        plt.subplot(224)
+        plt.subplot(235)
         plt.title('Phase')
         plt.imshow(iImgCoeffs.real, interpolation='nearest')
         plt.imshow(np.angle(iImgCoeffs), interpolation='nearest')
         plt.colorbar()
+
+        plt.subplot(233)
+        coeffsFlat = []
+        mms = []
+        lls = []
+        for ll in np.arange(iImgCoeffs.shape[0]):
+            for mm in np.arange(-1*ll, ll+1):
+                mms.append(mm)
+                lls.append(ll)
+                coeffsFlat.append(iImgCoeffs[ll,ll+mm])
+        coeffsFlat = np.array(coeffsFlat)
+        plt.ylabel('Amplitude (dB)')
+        plt.xlabel('l')
+        plt.plot(lls, 10.*np.log10(np.abs(coeffsFlat)), '.')
+
+        plt.subplot(236)
+        plt.ylabel('Amplitude (dB)')
+        plt.xlabel('m')
+        plt.plot(mms, 10.*np.log10(np.abs(coeffsFlat)), '.')
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay:

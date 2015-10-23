@@ -31,7 +31,7 @@ def lplm_n(l, m, x):
     if l == m+1:
         return pmmp1
     for ll in xrange(m+2, l+1):
-        print ll
+        #print ll
         pll = (x*(2.*ll-1.)*pmmp1 - np.sqrt( (ll-1.)**2. - m**2.)*pmm)/np.sqrt(ll**2.-m**2.)
         pmm = pmmp1
         pmmp1 = pll
