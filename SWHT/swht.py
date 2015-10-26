@@ -3,8 +3,6 @@ Functions for producing SWHT-based dirty images
 Based on T. Carozzi MATLAB code
 """
 
-#TODO: speedup spharm: multi-core, write function instead of scipy.special, use Ylm
-
 import numpy as np
 import scipy.special
 import math
@@ -88,31 +86,37 @@ def computeVisSamples(vislm, k, r, theta, phi):
     returns: vis [Q, N] complex array of visibilities
     """
     vis = np.zeros(r.shape, dtype='complex')
-    #TODO: pre-compute bessel and Ylm functions
-
     nsbs = r.shape[1]
-    for sbIdx in range(nsbs): #loop over frequency subbands
-        kr = r[:, sbIdx:sbIdx+1] * k[sbIdx, 0] #compute the radii in wavelengths for each visibility sample
+    kr = r * k.flatten() #compute the radii in wavelengths for each visibility sample
 
-        print 'L(%i):'%sbIdx,
-        for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
-            print l,
-            sys.stdout.flush()
-            for m in np.arange(-1*l, l+1):
-                vis += vislm[l, l+m] * sphBj(l, kr) * Ylm.Ylm( l, m, phi[:, sbIdx:sbIdx+1], theta[:, sbIdx:sbIdx+1])
+    print 'L:',
+    for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
+        print l,
+        jvVals = np.reshape(sphBj(l, kr.flatten()), kr.shape) #compute Bessel function radius values
+        sys.stdout.flush()
+        for m in np.arange(-1*l, l+1):
+            vis += vislm[l, l+m] * jvVals * Ylm.Ylm( l, m, phi, theta)
 
     return vis
 
 def computeblm(vislm, reverse=False):
     """Compute the spherical wave harmonics brightness coefficients from the spherical wave harmonics visibility coefficients, Eq. 11 of Carozzi 2015
-    vislm: complex array, spherical wave harmonics visibility coefficients computed from computeVislm()
+    vislm: [L+1, 2L+1]complex array, spherical wave harmonics visibility coefficients computed from computeVislm()
     reverse: if true, convert vislm from input blm
     """
-    blm = np.zeros_like(vislm)
-    for l in np.arange(blm.shape[0]):
-        for m in np.arange(-1*l, l+1):
-            if reverse: blm[l, l+m] = vislm[l, l+m] * (4.*np.pi*((-1.*1j)**float(l)))
-            else: blm[l, l+m] = vislm[l, l+m] / (4.*np.pi*((-1.*1j)**float(l)))
+    ##Old for loop
+    #blm = np.zeros_like(vislm)
+    #for l in np.arange(blm.shape[0]):
+    #    for m in np.arange(-1*l, l+1):
+    #        if reverse: blm[l, l+m] = vislm[l, l+m] * (4.*np.pi*((-1.*1j)**float(l)))
+    #        else: blm[l, l+m] = vislm[l, l+m] / (4.*np.pi*((-1.*1j)**float(l)))
+
+    lls = np.repeat(np.arange(vislm.shape[0], dtype=float)[np.newaxis].T, 2*(vislm.shape[0]-1) + 1, axis=1)
+    if reverse:
+       blm = vislm * (4.*np.pi*((-1.*1j)**lls))
+    else:
+        blm = vislm / (4.*np.pi*((-1.*1j)**lls))
+
     return blm
 
 def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
@@ -145,11 +149,6 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
 
     #compute the SWHT visibility coefficients
     vislm = computeVislm(lmax, k, r, theta, phi, vis, lmin=lmin)
-    #vislmr = computeRecursiveVislm(lmax, k, r, theta, phi, vis, lmin=lmin)
-    #print vislm
-    #print vislmr
-    #print vislm - vislmr
-    #exit()
     #compute the SWHT brightness coefficients
     blm = computeblm(vislm)
 

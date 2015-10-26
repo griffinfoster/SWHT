@@ -145,8 +145,8 @@ if __name__ == '__main__':
                         sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
                     else: #Apply Gains
                         sbAntGains = antGains[sb][np.newaxis].T
-                        sbVisGains = np.dot(np.conjugate(sbAntGains), sbAntGains.T)
-                        sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol) #TODO: check with Tobia about CalTable order and how to apply
+                        sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+                        sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol)
 
                     #correct the time due to subband stepping
                     tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
@@ -159,25 +159,13 @@ if __name__ == '__main__':
                     sbCorrMatrix = corrMatrix #shape (nantpol, nantpol)
                 else: #Apply Gains
                     sbAntGains = antGains[fDict['sb']][np.newaxis].T
-                    sbVisGains = np.dot(np.conjugate(sbAntGains), sbAntGains.T)
-                    sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol) #TODO: check with Tobia about CalTable order and how to apply
+                    sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+                    sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol)
                 tDeltas = [datetime.timedelta(0, 0)] #no time offset
 
             print 'done'
             print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
             
-            ##TODO: get working correctly
-            ##read cal file if included and apply agin solutions
-            #if not (opts.calfile is None):
-            #    antGains = np.fromfile(opts.calfile, dtype='complex').reshape(nchan, nants, npols)
-            #    xAntGains = antGains[:,:,0]
-            #    yAntGains = antGains[:,:,1]
-            #    for sid,sb in enumerate(sbs):
-            #        calxSB=calx[sb]
-            #        calxSB=np.reshape(calxSB,(96,1))
-            #        gains=np.conj(calxSB) * np.transpose(calxSB)
-            #        polAcc=np.multiply(polAcc,gains) 
-
             obs = ephem.Observer() #create an observer at the array location
             obs.long = lon * (np.pi/180.)
             obs.lat = lat * (np.pi/180.)

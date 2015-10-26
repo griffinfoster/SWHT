@@ -121,23 +121,23 @@ if __name__ == '__main__':
                     sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
                 else: #Apply Gains
                     sbAntGains = antGains[sb][np.newaxis].T
-                    sbVisGains = np.dot(np.conjugate(sbAntGains), sbAntGains.T)
-                    sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol) #TODO: check with Tobia about CalTable order and how to apply
+                    sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+                    sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol)
 
                 #correct the time due to subband stepping
                 tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
                 rem = tOffset - int(tOffset) #subsecond remainder
                 tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
             meants = fDict['ts'] - SWHT.util.meanTimeDelta(tDeltas) #if using multiple subbands, use the mean offset time
-
+            
         elif fDict['fmt']=='xst':
             corrMatrix = np.fromfile(visFile, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
             if antGains is None:
                 sbCorrMatrix = corrMatrix #shape (nantpol, nantpol)
             else: #Apply Gains
                 sbAntGains = antGains[fDict['sb']][np.newaxis].T
-                sbVisGains = np.dot(np.conjugate(sbAntGains), sbAntGains.T)
-                sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol) #TODO: check with Tobia about CalTable order and how to apply
+                sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+                sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol)
             meants = fDict['ts']
 
         print 'done'
