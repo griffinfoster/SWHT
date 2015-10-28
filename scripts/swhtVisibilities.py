@@ -122,7 +122,7 @@ if __name__ == '__main__':
             nchan = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['nchan']
             bw = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['bw']
             df = bw/nchan
-            freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset']
+            freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset'] + (df/2.) #df/2 to centre the band
             print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
             npols = 2
 
@@ -149,7 +149,7 @@ if __name__ == '__main__':
                         sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol)
 
                     #correct the time due to subband stepping
-                    tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
+                    tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename is for the last subband
                     rem = tOffset - int(tOffset) #subsecond remainder
                     tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
 

@@ -52,6 +52,8 @@ def vectorize3D(mat):
 
 def convert_arg_range(arg):
     """Split apart command-line lists/ranges into a list of numbers."""
+    if arg is None: return None
+
     arg = arg.split(',')
     outList = []
     for aa in arg:

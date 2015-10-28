@@ -17,13 +17,13 @@ def parse(fn, fmt=None):
     fDict['fn'] = fn
     if fn.lower().endswith('.ms') or fmt=='ms':
         fDict['fmt'] = 'ms'
-    elif fn.lower().endswith('.dat') or fmt=='acc' or fmt=='xst':
+    elif fn.lower().endswith('.dat') or fn.lower().endswith('.dat.sim') or fmt=='acc' or fmt=='xst':
         metaData = fn.split('/')[-1].split('_')
         fDict['ts'] = datetime.datetime(year=int(metaData[0][:4]), month=int(metaData[0][4:6]), day=int(metaData[0][6:]), hour=int(metaData[1][:2]), minute=int(metaData[1][2:4]), second=int(metaData[1][4:]))
-        if metaData[2]=='acc': #the file is a LOFAR ACC file
+        if metaData[2].startswith('acc'): #the file is a LOFAR ACC file
             fDict['fmt'] = 'acc'
             fDict['shape'] = map(int, metaData[3].split('.')[0].split('x'))
-        elif metaData[-1]=='xst.dat': #the file is a SE607 format LOFAR XST file
+        elif metaData[-1].startswith('xst.dat'): #the file is a SE607 format LOFAR XST file
             fDict['fmt'] = 'xst'
             fDict['rcu'] = int(metaData[2][3:])
             fDict['sb'] = int(metaData[3][2:])
@@ -31,8 +31,6 @@ def parse(fn, fmt=None):
             fDict['dur'] = float(metaData[5][3:])
             if len(metaData)==8: #HBA all-sky file, get element identifiers
                 fDict['elem'] = metaData[6][2:]
-            else:
-                fDict['elem'] = None
     elif fn.lower().endswith('.pkl') or fmt=='pkl': #the file is a set of SWHT image coefficients
         fDict['fmt'] = 'pkl'
     else:

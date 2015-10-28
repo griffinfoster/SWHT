@@ -88,6 +88,7 @@ def computeVisSamples(vislm, k, r, theta, phi):
     vis = np.zeros(r.shape, dtype='complex')
     nsbs = r.shape[1]
     kr = r * k.flatten() #compute the radii in wavelengths for each visibility sample
+    lmax = vislm.shape[0] - 1
 
     print 'L:',
     for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
@@ -120,7 +121,7 @@ def computeblm(vislm, reverse=False):
     return blm
 
 def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
-    """Generate brightness coefficients based converting visibilities with the SWHT
+    """Generate brightness coefficients by transforming visibilities with the SWHT
     vis: complex array [Q, F], Q observed visibilities at F frequencies, can be size [Q] if only using 1 frequency
     uvw: float array [Q, 3, F], meters, has a F frequency axis because of the time steps in LOFAR station obsevrations changes uvw with respect to the frequency
     freqs: float array [F, 1] or [F], observing frequencies in Hz
@@ -158,6 +159,41 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
     print time.time() - start_time
 
     return blm
+
+#TODO: test
+def iswhtVisibilities(blm, uvw, freqs):
+    """Generate visibilities by inverse transforming brightness coefficients with the iSWHT
+    blm: [LMAX+1, 2*LMAX + 1] array, brightness coefficients
+    uvw: float array [Q, 3, F], meters, has a F frequency axis because of the time steps in LOFAR station obsevrations changes uvw with respect to the frequency
+    freqs: float array [F, 1] or [F], observing frequencies in Hz
+    """
+    start_time = time.time()
+
+    #Convert brightness coefficients into visibility coefficients
+    vislm = computeblm(blm, reverse=True)
+
+    #single subband cases
+    if uvw.ndim==2: uvw = uvw.reshape(uvw.shape[0], uvw.shape[1], 1)
+    if freqs.ndim==1: freqs = freqs[np.newaxis].T
+
+    k = 2. * np.pi * freqs/cc #obs freq/c
+
+    #convert u,v,w to r,phi,theta
+    r, phi, theta = util.cart2sph(uvw[:,0], uvw[:,1], uvw[:,2])
+    if r.ndim==1: #make arrays 2D
+        r = r[np.newaxis].T
+        phi = phi[np.newaxis].T #make range -pi to pi
+        theta = theta[np.newaxis].T
+    
+    phi = phi - np.pi #make range -pi to pi
+    theta = np.pi - theta #flip theta values
+
+    #compute visibilities
+    vis = computeVisSamples(vislm, k, r, theta, phi)
+
+    print time.time() - start_time
+
+    return vis
 
 def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     """Make a flat image of a single hemisphere from SWHT image coefficients

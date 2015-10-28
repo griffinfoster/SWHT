@@ -62,6 +62,7 @@ if __name__ == '__main__':
 
     visFile = args[0]
     fDict = SWHT.fileio.parse(visFile)
+    print fDict
 
     #parse subbands
     sbs = np.array(SWHT.util.convert_arg_range(opts.subband))
@@ -99,7 +100,7 @@ if __name__ == '__main__':
         nchan = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['nchan']
         bw = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['bw']
         df = bw/nchan
-        freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset']
+        freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset'] + (df/2.) #df/2 to centre the band
         print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
         npols = 2
         
