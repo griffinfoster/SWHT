@@ -142,7 +142,10 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
         r = r[np.newaxis].T
         phi = phi[np.newaxis].T #make range -pi to pi
         theta = theta[np.newaxis].T
-    phi = np.pi - phi #make range -pi to pi
+    
+    phi = phi - np.pi #make range -pi to pi
+    theta = np.pi - theta #flip theta values
+
     #r = np.sqrt(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2.)[np.newaxis].T
     #phi = np.arctan2(uvw[:,1], uvw[:,0])[np.newaxis].T
     #theta = (np.pi/2.) - np.arctan2(uvw[:,2], np.sqrt(uvw[:,0]**2. + uvw[:,1]**2.))[np.newaxis].T #make range -pi/2 to pi/2
@@ -186,8 +189,8 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     phi = np.reshape(phiflat, phi.shape)
 
     #convert to unit sphere coordinates
-    thetap = np.pi/2. - np.arccos(r) #north pole is at 0 in spherical coordinates
-    phip = phi + np.pi #azimuth range [0, 2pi]
+    thetap = np.arccos(r) - np.pi/2. #north pole is at 0 in spherical coordinates
+    phip = np.pi - phi #azimuth range [-pi, pi] -> [2pi, 0]
 
     #Determine the theta, phi coordinates for a hemisphere at the snapshot zenith
     X, Y, Z = util.sph2cart(thetap, phip)
@@ -195,7 +198,8 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     raRotation = np.array([[np.cos(ra), -1.*np.sin(ra), 0.],
                            [np.sin(ra),     np.cos(ra), 0.],
                            [        0.,             0., 1.]]) #rotate about the z-axis
-    dec = np.pi/2. - phs[1] #adjust relative to the north pole at pi/2
+    dec = np.pi - phs[1] #adjust relative to the north pole at -pi/2
+    print 'dec', dec, 'phs', phs[1]
     decRotation = np.array([[1.,0.,0.],
                             [0., np.cos(dec), -1.*np.sin(dec)],
                             [0., np.sin(dec), np.cos(dec)]]) #rotate about the x-axis
@@ -217,6 +221,7 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
 
     print time.time() - start_time
 
+    #return theta0
     return img
 
 #TODO: make3Dimage: masking
@@ -238,23 +243,21 @@ def make3Dimage(coeffs, dim=[64, 64]):
             img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi, theta) #TODO: a slow call
     print 'done'
 
-    return img, 2.*np.pi - phi, np.pi - theta #flip theta and phi values
+    return img, phi, theta #flip theta and phi values
 
 #TODO: makeHEALPix: masking
 def makeHEALPix(coeffs, nside=64):
-    """Make a HEALPix map from SWHT image coefficients
+    """Make a HEALPix map from SWHT image coefficients, comparable to healpy.alm2map()
     coeffs: SWHT brightness coefficients
     nside: int, HEALPix NSIDE
     """
     hpIdx = np.arange(hp.nside2npix(nside)) #create an empty HEALPix map
     hpmap = np.zeros((hp.nside2npix(nside)), dtype=complex) #HEALPix ids
     theta, phi = hp.pix2ang(nside, hpIdx)
-    theta = np.pi - theta #flip theta values
-    phi = 2.*np.pi - phi #flip phi values
 
-    lmax = coeffs.shape[0]
+    lmax = coeffs.shape[0] - 1
     print 'L:',
-    for l in np.arange(lmax):
+    for l in np.arange(lmax + 1):
         print l,
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):

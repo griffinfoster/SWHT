@@ -86,15 +86,17 @@ if __name__ == '__main__':
     #mask out declination regions
     nside = hp.pixelfunc.get_nside(m)
     if opts.dec_min is None: dec_min = 180.
-    else: dec_min = 90. - opts.dec_min
+    else:
+        dec_min = 90. - opts.dec_min
+        theta_min = (dec_min / 180.) * np.pi
+        ring_min = hp.pixelfunc.ang2pix(nside, theta_min, 0.)
+        m[ring_min:] = hp.pixelfunc.UNSEEN
     if opts.dec_max is None: dec_max = 0.
-    else: dec_max = 90. - opts.dec_max
-    theta_min = (dec_min / 180.) * np.pi
-    theta_max = (dec_max / 180.) * np.pi
-    ring_min = hp.pixelfunc.ang2pix(nside, theta_min, 0.)
-    ring_max = hp.pixelfunc.ang2pix(nside, theta_max, 0.)
-    m[ring_min:] = hp.pixelfunc.UNSEEN
-    m[:ring_max] = hp.pixelfunc.UNSEEN
+    else:
+        dec_max = 90. - opts.dec_max
+        theta_max = (dec_max / 180.) * np.pi
+        ring_max = hp.pixelfunc.ang2pix(nside, theta_max, 0.)
+        m[:ring_max] = hp.pixelfunc.UNSEEN
 
     #replace nan values with zero
     if opts.fill: m = np.nan_to_num(m)

@@ -102,7 +102,9 @@ if __name__ == '__main__':
 
     elif opts.imageMode.startswith('heal'): #plot healpix and save healpix file using the opts.pkl name
         print 'Generating HEALPix Image with %i NSIDE'%(opts.pixels)
-        m = SWHT.swht.makeHEALPix(iImgCoeffs, nside=opts.pixels)
+        #use the healpy.alm2map function as it is much faster, there is a ~1% difference between the 2 functions, this is probably due to the inner workings of healpy
+        #m = SWHT.swht.makeHEALPix(iImgCoeffs, nside=opts.pixels)
+        m = hp.alm2map(SWHT.util.array2almVec(iImgCoeffs), opts.pixels)
 
         #save complex image to HEALPix file
         print 'Writing image to file %s ...'%outFn,

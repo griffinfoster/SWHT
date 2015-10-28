@@ -68,6 +68,136 @@ def meanTimeDelta(l):
         tDelta += td
     return tDelta/len(l)
 
+#Functions taken from healpy/sphtfunc.py
+class Alm(object):
+    """This class provides some static methods for alm index computation.
+
+    Methods
+    -------
+    getlm
+    getidx
+    getsize
+    getlmax
+    """
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def getlm(lmax,i=None):
+        """Get the l and m from index and lmax.
+        
+        Parameters
+        ----------
+        lmax : int
+          The maximum l defining the alm layout
+        i : int or None
+          The index for which to compute the l and m.
+          If None, the function return l and m for i=0..Alm.getsize(lmax)
+        """
+        if i is None:
+            i=np.arange(Alm.getsize(lmax))
+        m=(np.ceil(((2*lmax+1)-np.sqrt((2*lmax+1)**2-8*(i-lmax)))/2)).astype(int)
+        l = i-m*(2*lmax+1-m)//2
+        return (l,m)
+
+    @staticmethod
+    def getidx(lmax,l,m):
+        """Returns index corresponding to (l,m) in an array describing alm up to lmax.
+        
+        Parameters
+        ----------
+        lmax : int
+          The maximum l, defines the alm layout
+        l : int
+          The l for which to get the index
+        m : int
+          The m for which to get the index
+
+        Returns
+        -------
+        idx : int
+          The index corresponding to (l,m)
+        """
+        return m*(2*lmax+1-m)//2+l
+
+    @staticmethod
+    def getsize(lmax,mmax = None):
+        """Returns the size of the array needed to store alm up to *lmax* and *mmax*
+
+        Parameters
+        ----------
+        lmax : int
+          The maximum l, defines the alm layout
+        mmax : int, optional
+          The maximum m, defines the alm layout. Default: lmax.
+
+        Returns
+        -------
+        size : int
+          The size of the array needed to store alm up to lmax, mmax.
+        """
+        if mmax is None or mmax < 0 or mmax > lmax:
+            mmax = lmax
+        return mmax * (2 * lmax + 1 - mmax) // 2 + lmax + 1
+
+    @staticmethod
+    def getlmax(s, mmax = None):
+        """Returns the lmax corresponding to a given array size.
+        
+        Parameters
+        ----------
+        s : int
+          Size of the array
+        mmax : None or int, optional
+          The maximum m, defines the alm layout. Default: lmax.
+
+        Returns
+        -------
+        lmax : int
+          The maximum l of the array, or -1 if it is not a valid size.
+        """
+        if mmax is not None and mmax >= 0:
+            x = (2 * s + mmax ** 2 - mmax - 2) / (2 * mmax + 2)
+        else:
+            x = (-3 + np.sqrt(1 + 8 * s)) / 2
+        if x != np.floor(x):
+            return -1
+        else:
+            return int(x)
+
+def almVec2array(vec, lmax):
+    """Convert the vector output of healpy.map2alm into a 2-D array of the same format as used in the SWHT
+    healpy.map2alm returns coefficients for 0=<l<=lmax and 0<=m<=l
+    vec: output of healpy.map2alm
+    lmax: maximum l number used in healpy.map2alm"""
+    lmaxp1 = lmax + 1 #account for the 0 mode
+    coeffs = np.zeros((lmaxp1, 2*lmaxp1-1), dtype='complex')
+
+    for l in np.arange(lmaxp1):
+        for m in np.arange(l+1):
+            #These calls use the healpy Alm() calls which are reproduced in util.py
+            #coeffs[l,l-m] = ((-1.)**m) * np.conj(vec[hp.Alm.getidx(lmax,l,m)]) #since the map is real, the a_l,-m = (-1)**m * a_l,m.conj
+            #coeffs[l,l+m] = vec[hp.Alm.getidx(lmax,l,m)]
+            coeffs[l,l-m] = ((-1.)**m) * np.conj(vec[Alm.getidx(lmax,l,m)]) #since the map is real, the a_l,-m = (-1)**m * a_l,m.conj
+            coeffs[l,l+m] = vec[Alm.getidx(lmax,l,m)]
+
+    return coeffs
+
+def array2almVec(arr):
+    """Convert a 2-D array of coefficients used in the SWHT into a vector that is the same as that of healpy.map2alm such that healpy.alm2map can be called with the output vector
+    healpy.map2alm returns coefficients for 0=<l<=lmax and 0<=m<=l
+    arr: 2-D array of SWHT coefficients [lmax + 1, 2*lmax + 1]
+    """
+    lmax = arr.shape[0] - 1
+    ncoeffs = Alm.getsize(lmax)
+    vec = np.zeros(ncoeffs, dtype='complex')
+
+    for l in np.arange(lmax + 1):
+        for m in np.arange(l + 1):
+            vec[Alm.getidx(lmax,l,m)] = arr[l,l+m]
+
+    return vec
+
 import numpy as np
 
 if __name__ == '__main__':
