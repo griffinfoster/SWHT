@@ -97,6 +97,8 @@ if __name__ == '__main__':
                 fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
                 fDict['sb'] = sbs
                 fDict['int'] = opts.int_time
+            else:
+                sbs = fDict['sb']
 
             #longitude and latitude of array
             #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]

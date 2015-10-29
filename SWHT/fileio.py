@@ -26,7 +26,7 @@ def parse(fn, fmt=None):
         elif metaData[-1].startswith('xst.dat'): #the file is a SE607 format LOFAR XST file
             fDict['fmt'] = 'xst'
             fDict['rcu'] = int(metaData[2][3:])
-            fDict['sb'] = int(metaData[3][2:])
+            fDict['sb'] = np.array( [int(metaData[3][2:])] )
             fDict['int'] = float(metaData[4][3:])
             fDict['dur'] = float(metaData[5][3:])
             if len(metaData)==8: #HBA all-sky file, get element identifiers

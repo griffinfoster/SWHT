@@ -15,15 +15,16 @@ import util
 
 cc = 299792458. #speed of light, m/s
 
-def sphBj(l, r):
+def sphBj(l, r, autos=True):
     """spherical Bessel function of first kind
     l: int, order
-    r: positive float array, radius"""
+    r: positive float array, radius
+    autos: if True, set the 0-baseline (i.e. r=0/auto-correlations) to have a scale factor of 1, else make 0"""
     jl = np.sqrt(np.pi/(2.*r)) * scipy.special.jv( l+0.5, r) #throws warning when r=0, accounted for below
 
     rorgInd = np.argwhere(r == 0.)
     if len(rorgInd) > 0:
-        if l==0.: jl[rorgInd]=1.
+        if l==0. and autos: jl[rorgInd]=1.
         else: jl[rorgInd]=0.
 
     return jl
@@ -62,7 +63,7 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
         if l < lmin: continue
         print l,
-        jvVals = np.reshape(sphBj(l, kr.flatten()), kr.shape) #compute Bessel function radius values
+        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
             #Compute visibility spherical harmonic coefficients according to SWHT, i.e. multiply visibility by spherical wave harmonics for each L&M and sum over all baselines.
@@ -93,10 +94,14 @@ def computeVisSamples(vislm, k, r, theta, phi):
     print 'L:',
     for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
         print l,
-        jvVals = np.reshape(sphBj(l, kr.flatten()), kr.shape) #compute Bessel function radius values
+        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
             vis += vislm[l, l+m] * jvVals * Ylm.Ylm( l, m, phi, theta)
+    #import pylab
+    #pylab.plot(vis[:,0].real, '.')
+    #pylab.show()
+    #exit()
 
     return vis
 
@@ -141,7 +146,7 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
     r, phi, theta = util.cart2sph(uvw[:,0], uvw[:,1], uvw[:,2])
     if r.ndim==1: #make arrays 2D
         r = r[np.newaxis].T
-        phi = phi[np.newaxis].T #make range -pi to pi
+        phi = phi[np.newaxis].T
         theta = theta[np.newaxis].T
     
     phi = phi - np.pi #make range -pi to pi
@@ -156,7 +161,7 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
     #compute the SWHT brightness coefficients
     blm = computeblm(vislm)
 
-    print time.time() - start_time
+    print 'Run time: %f s'%(time.time() - start_time)
 
     return blm
 
@@ -178,11 +183,19 @@ def iswhtVisibilities(blm, uvw, freqs):
 
     k = 2. * np.pi * freqs/cc #obs freq/c
 
+    #from matplotlib import pyplot as plt
+    #from mpl_toolkits.mplot3d import Axes3D
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #ax.scatter(uvw[:,0], uvw[:,1], uvw[:,2])
+    #plt.show()
+    #exit()
+
     #convert u,v,w to r,phi,theta
     r, phi, theta = util.cart2sph(uvw[:,0], uvw[:,1], uvw[:,2])
     if r.ndim==1: #make arrays 2D
         r = r[np.newaxis].T
-        phi = phi[np.newaxis].T #make range -pi to pi
+        phi = phi[np.newaxis].T 
         theta = theta[np.newaxis].T
     
     phi = phi - np.pi #make range -pi to pi
@@ -191,7 +204,7 @@ def iswhtVisibilities(blm, uvw, freqs):
     #compute visibilities
     vis = computeVisSamples(vislm, k, r, theta, phi)
 
-    print time.time() - start_time
+    print 'Run time: %f s'%(time.time() - start_time)
 
     return vis
 
@@ -255,7 +268,7 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
             img += coeffs[l, l+m] * Ylm.Ylm(l, m, phi0, theta0) #TODO: a slow call
     print 'done'
 
-    print time.time() - start_time
+    print 'Run time: %f s'%(time.time() - start_time)
 
     #return theta0
     return img

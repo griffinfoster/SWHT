@@ -73,6 +73,8 @@ if __name__ == '__main__':
             fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
             fDict['sb'] = sbs
             fDict['int'] = opts.int_time
+        else:
+            sbs = fDict['sb']
 
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
 

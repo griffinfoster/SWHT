@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Convert a HEALPIX map into visibilities based on input Measurement Sets of LOFAR ACC, XST files
+Simulate visibilties based on a LOFAR station or Measurement Set from a HEALPIX map or set of Spherical Harmonics coefficients
 """
 
 import sys,os
@@ -18,11 +18,11 @@ import SWHT
 if __name__ == '__main__':
     from optparse import OptionParser
     o = OptionParser()
-    o.set_usage('%prog [options] -i HEALPIX_MAP MS/ACC/XST FILES\n' \
-        '    LOFAR XST, HEALPIX map, station\n' \
-        '    LOFAR ACC, HEALPIX map, station, subbands (optional)\n' \
-        '    HEALPIX map, station, subbands, rcumode, timestamp\n' \
-        '    Measurement Set, HEALPIX map, subbands (optional), column, mode\n')
+    o.set_usage('%prog [options] -i HEALPIX_MAP/COEFF_PKL MS/ACC/XST FILES\n' \
+        '    LOFAR XST, HEALPIX map/coefficient pickle, station\n' \
+        '    LOFAR ACC, HEALPIX map/coefficient pickle, station, subbands (optional)\n' \
+        '    HEALPIX map/coefficient pickle, station, subbands, rcumode, timestamp\n' \
+        '    Measurement Set, HEALPIX map/coefficient pickle, subbands (optional), column, mode\n')
     o.set_description(__doc__)
     o.add_option('-i', '--imap', dest='imap', default=None,
         help='REQUIRED: Input HEALPIX map or spherical harmonics coefficient file')
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     o.add_option('-I', '--int', dest='int_time', default=1., type='float',
         help = 'LOFAR ONLY: Integration time, used for accurate zenith pointing, for XST it will override filename metadata, default: 1 second')
     o.add_option('-l', '--lmax', dest='lmax', default=32, type='int',
-        help = 'Maximum l spherical harmonic quantal number, default: 32')
+        help = 'HEALPIX ONLY: Maximum l spherical harmonic quantal number, default: 32')
     o.add_option('-c', '--column', dest='column', default='CORRECTED_DATA', type='str',
         help = 'MS ONLY: select which data column write visibilities to, default: CORRECTED_DATA')
     o.add_option('-m', '--mode', dest='mode', default='replace', type='str',
@@ -49,25 +49,32 @@ if __name__ == '__main__':
     opts, args = o.parse_args(sys.argv[1:])
 
     if opts.imap is None:
-        print "ERROR: no input HEALPIX map set with -i/--imap option"
+        print "ERROR: no input HEALPIX map or coefficient file set with -i/--imap option"
         exit()
+    elif opts.imap.endswith('.hpx'): #input HEALPIX map, decompose into spherical harmonic coefficients
+        #Get HEALPIX map
+        m = None
+        w = None
+        print 'Opening:', opts.imap
+        hpMap = hp.read_map(opts.imap, field=None, h=True)
+        if len(hpMap)==2: #no weight map
+            m, hdr = hpMap
+        elif len(hpMap)==3: #weight map
+            m, w, hdr = hpMap
 
-    #Get HEALPIX map
-    m = None
-    w = None
-    print 'Opening:', opts.imap
-    hpMap = hp.read_map(opts.imap, field=None, h=True)
-    if len(hpMap)==2: #no weight map
-        m, hdr = hpMap
-    elif len(hpMap)==3: #weight map
-        m, w, hdr = hpMap
+        if w is not None: m /= w #divide by the pixel weights
+        print 'Map :: min=%f :: max=%f'%(np.nanmin(m), np.nanmax(m))
 
-    if w is not None: m /= w #divide by the pixel weights
-    print 'Map :: min=%f :: max=%f'%(np.nanmin(m), np.nanmax(m))
+        #Convert HEALPIX map into Alm spherical harmonics coefficients
+        print 'Generating Spherical Harmonic Coefficients from map...',
+        alms = hp.sphtfunc.map2alm(m, lmax=opts.lmax, mmax=opts.lmax)
+        blm = SWHT.util.almVec2array(alms, opts.lmax)
+        print 'done'
 
-    #Convert HEALPIX map into Alm spherical harmonics coefficients
-    alms = hp.sphtfunc.map2alm(m, lmax=opts.lmax, mmax=opts.lmax)
-    blm = SWHT.util.almVec2array(alms, opts.lmax)
+    elif opts.imap.endswith('.pkl'): #SWHT coefficient pickle
+        print 'Loading Image Coefficients file:', opts.imap
+        coeffDict = SWHT.fileio.readCoeffPkl(opts.imap)
+        blm = coeffDict['coeffs']
 
     #parse subbands
     sbs = np.array(SWHT.util.convert_arg_range(opts.subband))
@@ -160,6 +167,10 @@ if __name__ == '__main__':
 
             #Compute visibilities from brightness coefficients
             vis = SWHT.swht.iswhtVisibilities(blm, uvw, np.array([freqs[sbIdx]]))
+
+            iImgCoeffs = SWHT.swht.swhtImageCoeffs(vis, uvw, np.array([freqs[sbIdx]]), lmax=32)
+            SWHT.fileio.writeCoeffPkl('reverseTestCoeffs.pkl', iImgCoeffs, [0., 0.], 0.)
+            exit()
 
             #Build a correlation matrix for a single polarization
             corrMatrix = np.zeros((nants, nants), dtype=complex)
