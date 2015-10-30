@@ -30,6 +30,8 @@ if __name__ == '__main__':
         help = '2D IMAGING MODE ONLY: Field of View in degrees, default: 180 (all-sky)')
     o.add_option('-I', '--image', dest='imageMode', default='2D',
         help='Imaging mode: 2D (hemisphere flattened), 3D, healpix, coeff (coefficients) default: 2D')
+    o.add_option('--vis', dest='viscoeffs', action='store_true',
+        help='If plotting coefficients, convert them to visibility coefficients')
     opts, args = o.parse_args(sys.argv[1:])
 
     #get filenames to image
@@ -112,6 +114,8 @@ if __name__ == '__main__':
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
+        if opts.viscoeffs: #convert brightness coefficients to visibility coefficients
+            iImgCoeffs = SWHT.swht.computeblm(iImgCoeffs, reverse=True)
         iImgCoeffs[0,0] = 0 #zero out DC offset component
 
         plt.subplot(231)

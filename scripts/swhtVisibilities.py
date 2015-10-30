@@ -56,7 +56,7 @@ if __name__ == '__main__':
     o.add_option('--fov', dest='fov', default=180., type='float',
         help = '2D IMAGING MODE ONLY: Field of View in degrees, default: 180 (all-sky)')
     o.add_option('-l', '--lmax', dest='lmax', default=32, type='int',
-        help = 'Maximum l spherical harmonic quantal number, rule-of-thumb: used number of antenna elements, default: 32')
+        help = 'Maximum l spherical harmonic quantal number, rule-of-thumb: lmax ~ (pi/longest baseline resolution), default: 32')
     o.add_option('--lmin', dest='lmin', default=0, type='int',
         help = 'Minimum l spherical harmonic quantal number, usually left as 0, default: 0')
     o.add_option('--ocoeffs', dest='ocoeffs', default=None,
