@@ -30,9 +30,9 @@ if __name__ == '__main__':
     o.add_option('--min', dest='min', default=None, type='float',
         help='Min flux value, default: None')
     o.add_option('--dec_min', dest='dec_min', default=None, type='float',
-        help='Min declination to plot, in degrees, default: None')
+        help='Min declination to plot, in degrees, only works propertly if the input map is in Celestial coordinates, default: None')
     o.add_option('--dec_max', dest='dec_max', default=None, type='float',
-        help='Max declination to plot, in degrees, default: None')
+        help='Max declination to plot, in degrees, only works propertly if the input map is in Celestial coordinates, default: None')
     o.add_option('-w', '--weight', dest='weight_map', action='store_true',
         help='Plot the sample weighting as a map instead of the data')
     o.add_option('--cmap', dest='cmap', default='jet',
@@ -59,9 +59,11 @@ if __name__ == '__main__':
 
     m = None
     w = None
+    coordSys = 'C' #default to celestial coordinates
     for fid,fn in enumerate(args):
         print 'Opening: %s (%i/%i)'%(fn, fid+1, len(args))
         hpMap = hp.read_map(fn, field=None, h=True)
+        hdr = hpMap[-1]
         if len(hpMap)==2: #no weight map
             if m is None: m = hpMap[0]
             else: m += hpMap[0]
@@ -70,8 +72,15 @@ if __name__ == '__main__':
             else:
                 m += hpMap[0]
                 w += hpMap[1]
+
     #set map projection
-    coord_proj = opts.proj.upper()
+    for item in hdr: #get coordinate system from the header
+        if item[0].startswith('COORDSYS'): coordSys = item[1]
+    if len(opts.proj) == 1:
+        coord_proj = coordSys + opts.proj.upper()
+    else: #override the projection
+        coord_proj = opts.proj.upper()
+    print 'Using coordinate projection: %s -> %s'%(coord_proj[0], coord_proj[1])
 
     if w is not None: m /= w #divide by the pixel weights
     
@@ -83,7 +92,7 @@ if __name__ == '__main__':
 
     if opts.mode.lower()=='s': m = np.sqrt(m - np.min(np.nan_to_num(m)))
 
-    #mask out declination regions
+    #mask out declination regions, only works properly when the input map is in Celestial coordinates
     nside = hp.pixelfunc.get_nside(m)
     if opts.dec_min is None: dec_min = 180.
     else:

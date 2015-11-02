@@ -397,7 +397,7 @@ if __name__ == '__main__':
 
         #save complex image to HEALPix file
         print 'Writing image to file %s ...'%outFn,
-        hp.write_map(outFn, np.abs(m))
+        hp.write_map(outFn, np.abs(m), coord='C')
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
