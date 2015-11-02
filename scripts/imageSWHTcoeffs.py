@@ -116,7 +116,7 @@ if __name__ == '__main__':
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
         if opts.viscoeffs: #convert brightness coefficients to visibility coefficients
             iImgCoeffs = SWHT.swht.computeblm(iImgCoeffs, reverse=True)
-        iImgCoeffs[0,0] = 0 #zero out DC offset component
+        #iImgCoeffs[0,0] = 0 #zero out DC offset component
 
         plt.subplot(231)
         plt.title('Real Components')

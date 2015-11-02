@@ -79,7 +79,7 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     return vislm
 
 #TODO: test
-#TODO: scale factor missing? the simulated visibilities end up being large then the original by a factor of ~5
+#TODO: scale factor missing? the simulated visibilities end up being larger then the original by a factor of ~5
 def computeVisSamples(vislm, k, r, theta, phi):
     """The reverse function to computeVislm, compute the visibilities for give set of (r, theta, phi) from vislm coefficients, Eq. 9 pf Carozzi 2015
     vislm: complex array, spherical wave harmonics visibility coefficients computed from computeVislm()
@@ -95,10 +95,10 @@ def computeVisSamples(vislm, k, r, theta, phi):
     print 'L:',
     for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
         print l,
-        if l==0:
-            krIdx = np.argwhere(kr == 0.)
-            vis[krIdx] += vislm[0, 0] * 1. * (.5 * np.sqrt(1. / np.pi))
-            continue #TODO: I think l==0 needs to be skipped because it is the auto-correlation which shouldn't go into the cross-correlations
+        #if l==0:
+        #    krIdx = np.argwhere(kr == 0.)
+        #    vis[krIdx] += vislm[0, 0] * 1. * (.5 * np.sqrt(1. / np.pi))
+        #    continue #TODO: I think l==0 needs to be skipped because it is the auto-correlation which shouldn't go into the cross-correlations
         #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
         jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
         sys.stdout.flush()

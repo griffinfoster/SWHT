@@ -168,7 +168,23 @@ if __name__ == '__main__':
             #Compute visibilities from brightness coefficients
             vis = SWHT.swht.iswhtVisibilities(blm, uvw, np.array([freqs[sbIdx]]))
 
+            #remove auto-correlations
+            autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
+            vis[autoIdx] = 0.
             iImgCoeffs = SWHT.swht.swhtImageCoeffs(vis, uvw, np.array([freqs[sbIdx]]), lmax=32)
+            
+            from matplotlib import pyplot as plt
+            plt.subplot(131)
+            plt.imshow(10.*np.log10(np.abs(blm)), interpolation='nearest')
+            plt.colorbar()
+            plt.subplot(132)
+            plt.imshow(10.*np.log10(np.abs(iImgCoeffs)), interpolation='nearest')
+            plt.colorbar()
+            plt.subplot(133)
+            plt.imshow(10.*np.log10(np.abs(iImgCoeffs-blm)), interpolation='nearest')
+            plt.colorbar()
+            plt.show()
+
             SWHT.fileio.writeCoeffPkl('reverseTestCoeffs.pkl', iImgCoeffs, [0., 0.], 0.)
             exit()
 

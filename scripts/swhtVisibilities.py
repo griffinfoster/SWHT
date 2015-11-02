@@ -52,7 +52,7 @@ if __name__ == '__main__':
     o.add_option('--override', dest='override', action='store_true',
         help = 'LOFAR XST ONLY: override filename metadata for RCU, integration length, and subband')
     o.add_option('--autos', dest='autos', action='store_true',
-        help = 'Drop the auto-correlation in the image, by default they are included')
+        help = 'Include the auto-correlations in the image')
     o.add_option('--fov', dest='fov', default=180., type='float',
         help = '2D IMAGING MODE ONLY: Field of View in degrees, default: 180 (all-sky)')
     o.add_option('-l', '--lmax', dest='lmax', default=32, type='int',
@@ -319,9 +319,9 @@ if __name__ == '__main__':
 
     #decompose the input visibilities into spherical harmonics visibility coefficeints
     if decomp:
-        #remove auto-correlations, by default keep them in as they help with the decomposition
+        #remove auto-correlations
         print 'AUTO-CORRELATIONS:', opts.autos
-        if opts.autos:
+        if not opts.autos:
             autoIdx = np.argwhere(uvwComb[:,0]**2. + uvwComb[:,1]**2. + uvwComb[:,2]**2. == 0.)
             xxVisComb[autoIdx] = 0.
             xyVisComb[autoIdx] = 0.
