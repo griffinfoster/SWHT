@@ -32,6 +32,8 @@ if __name__ == '__main__':
         help = 'LOFAR ONLY: AntennaField.conf file for the LOFAR station of the ACC files, default: None')
     o.add_option('-D', '--deltas', dest='deltas', default=None,
         help = 'LOFAR ONLY: iHBADeltas.conf file, only required for HBA imaging, default: None')
+    o.add_option('--override', dest='override', action='store_true',
+        help = 'LOFAR XST ONLY: override filename metadata for RCU, integration length, and subband')
     o.add_option('-r', '--rcumode', dest='rcumode', default=3, type='int',
         help = 'LOFAR ONLY: Station RCU Mode for simulation, usually 3,5,6,7, for XST it will override filename metadata default: 3(LBA High)')
     o.add_option('-t', '--ts', dest='ts', default=None,
@@ -169,9 +171,9 @@ if __name__ == '__main__':
             vis = SWHT.swht.iswhtVisibilities(blm, uvw, np.array([freqs[sbIdx]]))
 
             #remove auto-correlations
-            autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
-            vis[autoIdx] = 0.
-            iImgCoeffs = SWHT.swht.swhtImageCoeffs(vis, uvw, np.array([freqs[sbIdx]]), lmax=32)
+            #autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
+            #vis[autoIdx] = 0.
+            iImgCoeffs = SWHT.swht.swhtImageCoeffs(vis, uvw, np.array([freqs[sbIdx]]), lmax=blm.shape[0]-1)
             
             from matplotlib import pyplot as plt
             plt.subplot(131)
@@ -209,18 +211,129 @@ if __name__ == '__main__':
     else: #using input files as templates
         visFiles = args
         for vid,visFn in enumerate(visFiles):
-            print 'Using %s (%i/%i)'%(visFn, vid+1, len(visFiles))
+            print 'Simulating visibilities for %s (%i/%i)'%(visFn, vid+1, len(visFiles))
             fDict = SWHT.fileio.parse(visFn)
 
+            #TODO: test
             if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
-                print visFn
-                #TODO
-                #get file metadata
-                #get XYZ positions, convert to r,theta,phi
-                #Compute visibilities from brightness coefficients
-                #vis = iswhtVisibilities(blm, uvw, freqs)
-                #generate a new binary file and save visibilities
+                if fDict['fmt']=='acc' or opts.override:
+                    fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
+                    fDict['sb'] = sbs
+                    fDict['int'] = opts.int_time
+                else:
+                    sbs = fDict['sb']
 
+                #longitude and latitude of array
+                #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+                arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+                lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
+                print 'LON(deg):', lon, 'LAT(deg):', lat, 'ELEV(m):', elev
+
+                #antenna positions
+                ants = lofarStation.antField.antpos[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+                if 'elem' in fDict: #update the antenna positions if there is an element string
+                    if lofarStation.deltas is None:
+                        print 'Warning: HBA element string found, but HBADeltas file is missing, your image is probably not going to make sense'
+                    else:
+                        print 'Updating antenna positions with HBA element deltas'
+                        for aid in np.arange(ants.shape[0]):
+                            delta = lofarStation.deltas[int(fDict['elem'][aid], 16)]
+                            delta = np.array([delta, delta])
+                            ants[aid] += delta
+                nants = ants.shape[0]
+                print 'NANTENNAS:', nants
+
+                #frequency information
+                nchan = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['nchan']
+                bw = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['bw']
+                df = bw/nchan
+                freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset'] + (df/2.) #df/2 to centre the band
+                print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
+                npols = 2
+
+                obs = ephem.Observer() #create an observer at the array location
+                obs.long = lon * (np.pi/180.)
+                obs.lat = lat * (np.pi/180.)
+                obs.elevation = float(elev)
+                obs.epoch = fDict['ts']
+                obs.date = fDict['ts']
+                obsLat = float(obs.lat) #radians
+                obsLong = float(obs.long) #radians
+                print 'Observatory:', obs
+
+                #get the UVW and visibilities for the different subbands
+                ncorrs = nants*(nants+1)/2
+                for sbIdx, sb in enumerate(sbs):
+                    #correct the time due to subband stepping
+                    tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename is for the last subband
+                    rem = tOffset - int(tOffset) #subsecond remainder
+                    tDelta = datetime.timedelta(0, int(tOffset), rem*1e6)
+                    obs.epoch = fDict['ts'] - tDelta
+                    obs.date = fDict['ts'] - tDelta
+
+                    #in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
+                    LSTangle = obs.sidereal_time() #radians
+                    print 'LST:',  LSTangle
+                    rotAngle = float(LSTangle) - float(obs.long) #adjust LST to that of the Observatory longitutude to make the LST that at Greenwich
+                    #to be honest, the next two lines change the LST to make the images come out but i haven't worked out the coordinate transforms, so for now these work without justification
+                    rotAngle += np.pi
+                    rotAngle *= -1
+                    #Rotation matrix for antenna positions
+                    rotMatrix = np.array([[np.cos(rotAngle), -1.*np.sin(rotAngle), 0.],
+                                          [np.sin(rotAngle), np.cos(rotAngle),     0.],
+                                          [0.,               0.,                   1.]]) #rotate about the z-axis
+
+                    #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
+                    xyz = np.dot(ants[:,0,:], rotMatrix)
+
+                    repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
+                    uu = SWHT.util.vectorize(repxyz[:,:,0] - repxyz[:,:,0].T)
+                    vv = SWHT.util.vectorize(repxyz[:,:,1] - repxyz[:,:,1].T)
+                    ww = SWHT.util.vectorize(repxyz[:,:,2] - repxyz[:,:,2].T)
+                    uvw = np.vstack((uu, vv, ww)).T
+
+                    #Compute visibilities from brightness coefficients
+                    vis = SWHT.swht.iswhtVisibilities(blm, uvw, np.array([freqs[sbIdx]]))
+
+                    #remove auto-correlations
+                    #autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
+                    #vis[autoIdx] = 0.
+                    iImgCoeffs = SWHT.swht.swhtImageCoeffs(vis, uvw, np.array([freqs[sbIdx]]), lmax=blm.shape[0]-1)
+                    
+                    from matplotlib import pyplot as plt
+                    plt.subplot(131)
+                    plt.imshow(10.*np.log10(np.abs(blm)), interpolation='nearest')
+                    plt.colorbar()
+                    plt.subplot(132)
+                    plt.imshow(10.*np.log10(np.abs(iImgCoeffs)), interpolation='nearest')
+                    plt.colorbar()
+                    plt.subplot(133)
+                    plt.imshow(10.*np.log10(np.abs(iImgCoeffs-blm)), interpolation='nearest')
+                    plt.colorbar()
+                    plt.show()
+
+                    SWHT.fileio.writeCoeffPkl('reverseTestCoeffs.pkl', iImgCoeffs, [0., 0.], 0.)
+                    exit()
+
+                    #Build a correlation matrix for a single polarization
+                    corrMatrix = np.zeros((nants, nants), dtype=complex)
+                    triu_indices = np.triu_indices(nants)
+                    tril_indices = np.tril_indices(nants)
+                    corrMatrix[tril_indices[0], tril_indices[1]] = np.conjugate(vis[:,0]/2.) #lower half is redundant, a conjugate of the upper half, 1/2 power for one polarization
+                    corrMatrix[triu_indices[0], triu_indices[1]] = vis[:,0]/2.
+
+                    #Create a LOFAR XST correlation matrix, XY and YX cross-pols are set to 0.
+                    fullCorrMatrix = np.zeros((nantpol, nantpol), dtype=complex)
+                    fullCorrMatrix[::2, ::2] = corrMatrix #XX
+                    fullCorrMatrix[1::2, 1::2] = corrMatrix #YY
+
+                    #Save simulated visibilities to XST file
+                    #20150915_191137_rcu5_sb60_int10_dur10_xst.dat
+                    xst_fn = dd + '_' + tt + '_rcu%i'%rcumode + '_sb%i'%sb + '_int%i'%int(opts.int_time) + '_dur%i'%int(opts.int_time) + '_xst.dat.sim'
+                    print 'Saving simulated visibilities to', xst_fn
+                    fullCorrMatrix.tofile(xst_fn)
+
+            #TODO: test
             elif fDict['fmt']=='ms': #MS-based visibilities
                 print visFn
                 #TODO

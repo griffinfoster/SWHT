@@ -2,7 +2,7 @@ SWHT
 ===
 
 Created: 30.09.15  
-Last Modified: 21.10.15  
+Last Modified: 02.11.15  
 Contact: griffin.foster@gmail.com  
 
 A python package for generating radio interferometry images from LOFAR station ACC and XST files, and from widefield, low-frequency measurement sets (e.g. PAPER) using a Spherical Wave Harmonic Transform ([Imaging on a Sphere with Interferometers: the Spherical Wave Harmonic Transform](http://arxiv.org/abs/1504.04485)) and a standard 2D Fourier Transform.
@@ -35,9 +35,11 @@ NOTE: the scripts will not be installed globally.
 #### Scripts
 
 * ftVisibilities.py: 2D Fourier Transform of LOFAR ACC, XST files and Measurement Sets  
-* swhtVisibilities.py: Spherical Wave Harmonic Transform of LOFAR ACC, XST files and Measurement Sets  
+* gsm2healpix.py: convert the output of the [GSM (Global Sky Model)](http://space.mit.edu/~angelica/gsm/index.html) to a HEALPIX map
 * imageSWHTcoeffs.py: generate images and HEALPIX maps from pre-computed SWHT image coefficients  
 * plotHealpix.py: general HEALPIX plotting script
+* simVisibilities.py: simulate visibilities from Spherical Harmonics coefficients or a HEALPIX map
+* swhtVisibilities.py: Spherical Wave Harmonic Transform of LOFAR ACC, XST files and Measurement Sets  
 
 #### Examples
 

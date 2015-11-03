@@ -64,6 +64,7 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
         if l < lmin: continue
         print l,
         jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
+        #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
             #Compute visibility spherical harmonic coefficients according to SWHT, i.e. multiply visibility by spherical wave harmonics for each L&M and sum over all baselines.
@@ -99,8 +100,8 @@ def computeVisSamples(vislm, k, r, theta, phi):
         #    krIdx = np.argwhere(kr == 0.)
         #    vis[krIdx] += vislm[0, 0] * 1. * (.5 * np.sqrt(1. / np.pi))
         #    continue #TODO: I think l==0 needs to be skipped because it is the auto-correlation which shouldn't go into the cross-correlations
-        #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
-        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
+        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
+        #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
             vis += vislm[l, l+m] * jvVals * Ylm.Ylm( l, m, phi, theta)
