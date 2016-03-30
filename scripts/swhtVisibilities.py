@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import datetime
 import ephem
-import pyrap.tables as pt
+import casacore.tables as tbls
 import healpy as hp
 import sys,os
 import SWHT
@@ -234,7 +234,7 @@ if __name__ == '__main__':
 
             fDict['sb'] = sbs
 
-            MS = pt.table(visFn, readonly=True)
+            MS = tbls.table(visFn, readonly=True)
             data_column = opts.column.upper()
             uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
             vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
@@ -242,11 +242,11 @@ if __name__ == '__main__':
             MS.close()
 
             #lat/long/lst information
-            ANTS = pt.table(visFn + '/ANTENNA')
+            ANTS = tbls.table(visFn + '/ANTENNA')
             positions = ANTS.col('POSITION').getcol()
             ant0Lat, ant0Long, ant0hgt = SWHT.ecef.ecef2geodetic(positions[0,0], positions[0,1], positions[0,2], degrees=False) #use the first antenna in the table to get the array lat/long
             ANTS.close()
-            SRC = pt.table(visFn + '/SOURCE')
+            SRC = tbls.table(visFn + '/SOURCE')
             direction = SRC.col('DIRECTION').getcol()
             obsLat = direction[0,1]
             obsLong = ant0Long
@@ -254,7 +254,7 @@ if __name__ == '__main__':
             SRC.close()
 
             #freq information, convert uvw coordinates
-            SW = pt.table(visFn + '/SPECTRAL_WINDOW')
+            SW = tbls.table(visFn + '/SPECTRAL_WINDOW')
             freqs = SW.col('CHAN_FREQ').getcol()[0, sbs] # [nchan]
             print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
             SW.close()

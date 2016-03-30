@@ -63,8 +63,8 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
     for l in np.arange(lmax+1): #increase lmax by 1 to account for starting from 0
         if l < lmin: continue
         print l,
-        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
-        #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
+        #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
+        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
             #Compute visibility spherical harmonic coefficients according to SWHT, i.e. multiply visibility by spherical wave harmonics for each L&M and sum over all baselines.
@@ -100,8 +100,8 @@ def computeVisSamples(vislm, k, r, theta, phi):
         #    krIdx = np.argwhere(kr == 0.)
         #    vis[krIdx] += vislm[0, 0] * 1. * (.5 * np.sqrt(1. / np.pi))
         #    continue #TODO: I think l==0 needs to be skipped because it is the auto-correlation which shouldn't go into the cross-correlations
-        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
-        #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
+        #jvVals = np.reshape(sphBj(l, kr.flatten(), autos=True), kr.shape) #compute Bessel function radius values
+        jvVals = np.reshape(sphBj(l, kr.flatten(), autos=False), kr.shape) #compute Bessel function radius values
         sys.stdout.flush()
         for m in np.arange(-1*l, l+1):
             vis += vislm[l, l+m] * jvVals * Ylm.Ylm( l, m, phi, theta)
@@ -158,6 +158,14 @@ def swhtImageCoeffs(vis, uvw, freqs, lmax, lmin=0):
     
     phi = phi - np.pi #make range -pi to pi
     theta = np.pi - theta #flip theta values
+
+    #from matplotlib import pyplot as plt
+    #from mpl_toolkits.mplot3d import Axes3D
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #ax.scatter(uvw[:,0], uvw[:,1], uvw[:,2], c=r, alpha=0.5, edgecolors='none')
+    #plt.show()
+    #exit()
 
     #r = np.sqrt(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2.)[np.newaxis].T
     #phi = np.arctan2(uvw[:,1], uvw[:,0])[np.newaxis].T

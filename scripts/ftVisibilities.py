@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import datetime
 import ephem
-import pyrap.tables as pt
+import casacore.tables as tbls
 import sys,os
 import SWHT
 
@@ -183,7 +183,7 @@ if __name__ == '__main__':
 
         fDict['sb'] = sbs
 
-        MS = pt.table(visFile, readonly=True)
+        MS = tbls.table(visFile, readonly=True)
         data_column = opts.column.upper()
         uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
         vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
@@ -191,7 +191,7 @@ if __name__ == '__main__':
         MS.close()
 
         #freq information, convert uvw coordinates
-        SW = pt.table(visFile + '/SPECTRAL_WINDOW')
+        SW = tbls.table(visFile + '/SPECTRAL_WINDOW')
         freqs = SW.col('CHAN_FREQ').getcol()[0, sbs][np.newaxis] # [1, nchan]
         #convert (u,v,w) from metres to wavelengths
         uu = np.dot(uvw[:,0][np.newaxis].T, freqs).flatten()

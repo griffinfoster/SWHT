@@ -92,6 +92,7 @@ if __name__ == '__main__':
         imin = img.min()
         imax = img.max()
         scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
+        #scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.gist_earth_r)
         scalarMap.set_array(img)
         C = scalarMap.to_rgba(img)
         surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
