@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import numpy as np
 import os, sys, glob
 
-__version__ = '0.1.1' #this needs to be kept up to date with SWHT/__init__.py
+__version__ = '0.1.2' #this needs to be kept up to date with SWHT/__init__.py
 
 setup(name = 'SWHT',
     version = __version__,
