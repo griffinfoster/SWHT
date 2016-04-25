@@ -352,8 +352,6 @@ if __name__ == '__main__':
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
 
-    #TODO: 2D image function
-    #TODO: 3D Driscoll and Healy image function
     if opts.imageMode.startswith('2'): #Make a 2D hemispheric image
         fov = opts.fov * (np.pi/180.) #Field of View in radians
         px = [opts.pixels, opts.pixels]
@@ -361,9 +359,7 @@ if __name__ == '__main__':
         print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
         print 'Resolution(deg):', res*180./np.pi
         img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
-        img = np.fliplr(img)
-        plt.imshow(np.abs(img), interpolation='nearest')
-        plt.colorbar()
+        fig, ax = SWHT.display.disp2D(img, dmode='abs', cmap='jet')
 
         #save complex image to pickle file
         print 'Writing image to file %s ...'%outFn,

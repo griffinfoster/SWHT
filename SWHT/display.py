@@ -6,13 +6,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 import swht, util
 
+def disp2D(img, dmode='abs', cmap='jet'):
+    """Display 2D projected image
+    img: 2D array of complex flux values
+    dmode: string, data mode (abs, real, imaginary, phase)
+    cmap: string, matplotlib colormap name
+    """
+    if dmode.startswith('abs'): img = np.abs(img)
+    elif dmode.startswith('real'): img = img.real
+    elif dmode.startswith('imag'): img = img.imag
+    elif dmode.startswith('phase'): img = np.angle(img)
+    else:
+        print 'WARNING: Unknown data mode, defaulting to absolute value'
+        img = np.abs(img)
+    
+    img = np.fliplr(img)
+
+    fig, ax = plt.subplots(1, 1)
+    plt.imshow(img, interpolation='nearest', cmap=plt.get_cmap(cmap))
+    plt.colorbar()
+
+    return fig, ax
+
 def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
     """Display 3D, equal in phi and theta (Driscoll and Healy mapping) image
-    img: 2D array of image values
+    img: 2D array of complex flux values
     phi: 2D array of phi values
     theta: 2D array of thetat values
         img, phi, theta are of the same shape, they are the output of swht.make3Dimage()
-    dim: 2 element list of resolution in phi and theta [delta phi, delta theta]
     dmode: string, data mode (abs, real, imaginary, phase)
     cmap: string, matplotlib colormap name
     """

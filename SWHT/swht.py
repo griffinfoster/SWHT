@@ -223,6 +223,7 @@ def iswhtVisibilities(blm, uvw, freqs):
 
     return vis
 
+#TODO: there is an issue about phase location, check this out
 def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     """Make a flat image of a single hemisphere from SWHT image coefficients
     coeffs: SWHT brightness coefficients

@@ -35,6 +35,7 @@ if __name__ == '__main__':
     opts, args = o.parse_args(sys.argv[1:])
 
     #get filenames to image
+    #TODO: can add together image coefficients, just need to consider the meta data setup
     coeffFiles = args
     for cid,coeffFn in enumerate(coeffFiles):
         print 'Using %s (%i/%i)'%(coeffFn, cid+1, len(coeffFiles))
@@ -52,9 +53,6 @@ if __name__ == '__main__':
             print 'ERROR: unknown data format, exiting'
             exit()
 
-    #TODO: 2D image function
-    #TODO: 3D Driscoll and Healy image function
-
     #Imaging
     if opts.of is None:
         if opts.imageMode.startswith('heal'): outFn = 'tempImage.hpx'
@@ -68,9 +66,7 @@ if __name__ == '__main__':
         print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
         print 'Resolution(deg):', res*180./np.pi
         img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
-        img = np.fliplr(img)
-        plt.imshow(np.abs(img), interpolation='nearest')
-        plt.colorbar()
+        fig, ax = SWHT.display.disp2D(img, dmode='abs', cmap='jet')
 
         #save complex image to pickle file
         print 'Writing image to file %s ...'%outFn,
@@ -105,4 +101,4 @@ if __name__ == '__main__':
     if not opts.nodisplay:
         if opts.imageMode.startswith('heal'): hp.mollview(np.abs(m))
         plt.show()
-    
+
