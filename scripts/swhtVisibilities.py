@@ -69,6 +69,7 @@ if __name__ == '__main__':
     sbs = np.array(SWHT.util.convert_arg_range(opts.subband))
 
     #setup variables for combined visibilities and uvw positions
+    #TODO: these 4 arrays could be a single array
     xxVisComb = np.array([]).reshape(0, len(sbs))
     xyVisComb = np.array([]).reshape(0, len(sbs))
     yxVisComb = np.array([]).reshape(0, len(sbs))
@@ -89,6 +90,12 @@ if __name__ == '__main__':
     for vid,visFn in enumerate(visFiles):
         print 'Using %s (%i/%i)'%(visFn, vid+1, len(visFiles))
         fDict = SWHT.fileio.parse(visFn)
+
+        #TODO: function to read ACC file
+        #TODO: function to read XST (HBA format)
+        #TODO: function to read XST (KAIRA format)
+        #TODO: function to read measurement set
+        #TODO: all return visibilities with UVW coordinates
 
         #Pull out the visibility data in a (u,v,w) format
         if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
@@ -345,6 +352,9 @@ if __name__ == '__main__':
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
 
+    #TODO: 2D image function
+    #TODO: 3D Driscoll and Healy image function
+    #TODO: healpix image function
     if opts.imageMode.startswith('2'): #Make a 2D hemispheric image
         fov = opts.fov * (np.pi/180.) #Field of View in radians
         px = [opts.pixels, opts.pixels]
@@ -401,49 +411,7 @@ if __name__ == '__main__':
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
-        iImgCoeffs[0,0] = 0 #zero out DC offset component
-
-        plt.subplot(221)
-        plt.title('Real Components')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(222)
-        plt.title('Imaginary Components')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.imshow(iImgCoeffs.imag, interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(223)
-        plt.title('Amplitude (dB)')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.imshow(10.*np.log10(np.abs(iImgCoeffs)), interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(224)
-        plt.title('Phase')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.imshow(np.angle(iImgCoeffs), interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(233)
-        coeffsFlat = []
-        mms = []
-        lls = []
-        for ll in np.arange(iImgCoeffs.shape[0]):
-            for mm in np.arange(-1*ll, ll+1):
-                mms.append(mm)
-                lls.append(ll)
-                coeffsFlat.append(iImgCoeffs[ll,ll+mm])
-        coeffsFlat = np.array(coeffsFlat)
-        plt.ylabel('Amplitude (dB)')
-        plt.xlabel('l')
-        plt.plot(lls, 10.*np.log10(np.abs(coeffsFlat)), '.')
-
-        plt.subplot(236)
-        plt.ylabel('Amplitude (dB)')
-        plt.xlabel('m')
-        plt.plot(mms, 10.*np.log10(np.abs(coeffsFlat)), '.')
+        fig, ax = SWHT.display.dispCoeffs(iImgCoeffs, zeroDC=True, vis=False)
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay:

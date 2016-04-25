@@ -52,6 +52,10 @@ if __name__ == '__main__':
             print 'ERROR: unknown data format, exiting'
             exit()
 
+    #TODO: 2D image function
+    #TODO: 3D Driscoll and Healy image function
+    #TODO: healpix image function
+
     #Imaging
     if opts.of is None:
         if opts.imageMode.startswith('heal'): outFn = 'tempImage.hpx'
@@ -115,51 +119,7 @@ if __name__ == '__main__':
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
-        if opts.viscoeffs: #convert brightness coefficients to visibility coefficients
-            iImgCoeffs = SWHT.swht.computeblm(iImgCoeffs, reverse=True)
-        #iImgCoeffs[0,0] = 0 #zero out DC offset component
-
-        plt.subplot(231)
-        plt.title('Real Components')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(232)
-        plt.title('Imaginary Components')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.imshow(iImgCoeffs.imag, interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(234)
-        plt.title('Amplitude (dB)')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.imshow(10.*np.log10(np.abs(iImgCoeffs)), interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(235)
-        plt.title('Phase')
-        plt.imshow(iImgCoeffs.real, interpolation='nearest')
-        plt.imshow(np.angle(iImgCoeffs), interpolation='nearest')
-        plt.colorbar()
-
-        plt.subplot(233)
-        coeffsFlat = []
-        mms = []
-        lls = []
-        for ll in np.arange(iImgCoeffs.shape[0]):
-            for mm in np.arange(-1*ll, ll+1):
-                mms.append(mm)
-                lls.append(ll)
-                coeffsFlat.append(iImgCoeffs[ll,ll+mm])
-        coeffsFlat = np.array(coeffsFlat)
-        plt.ylabel('Amplitude (dB)')
-        plt.xlabel('l')
-        plt.plot(lls, 10.*np.log10(np.abs(coeffsFlat)), '.')
-
-        plt.subplot(236)
-        plt.ylabel('Amplitude (dB)')
-        plt.xlabel('m')
-        plt.plot(mms, 10.*np.log10(np.abs(coeffsFlat)), '.')
+        fig, ax = SWHT.display.dispCoeffs(iImgCoeffs, zeroDC=True, vis=opts.viscoeffs)
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay:

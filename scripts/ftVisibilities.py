@@ -66,6 +66,12 @@ if __name__ == '__main__':
 
     #parse subbands
     sbs = np.array(SWHT.util.convert_arg_range(opts.subband))
+
+    #TODO: function to read ACC file
+    #TODO: function to read XST (HBA format)
+    #TODO: function to read XST (KAIRA format)
+    #TODO: function to read measurement set
+    #TODO: all return visibilities with UVW coordinates
     
     #Pull out the visibility data in a (u,v,w) format
     if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
@@ -258,6 +264,7 @@ if __name__ == '__main__':
     SWHT.fileio.writeImgPkl(outPklFn, np.array([xxIm,xyIm,yxIm,yyIm]), fDict, res=res, fttype=fttype, imtype='complex')
     print 'done'
     
+    #TODO: plotting function
     #display stokes plots
     if not opts.nodisplay or not (opts.savefig is None):
         #generate stokes images

@@ -3,7 +3,7 @@
 Simple script to convert the output of GSM (http://space.mit.edu/~angelica/gsm/index.html) into a HEALPIX FITS file
 """
 
-#try to us pandas to read in the text file as it has a faster parser than numpy
+#try to use pandas to read in the GSM text file as it has a faster parser than numpy
 useNumpy = False
 try:
     import pandas as pd
