@@ -19,7 +19,7 @@ setup(name = 'SWHT',
     include_dirs = [np.get_include()],
     package_data = {'SWHT': ['data/LOFAR/StaticMetaData/*.conf', 'data/LOFAR/*.txt']},
     #scripts = glob.glob('scripts/*.py'),
-    scripts = ['scripts/ftVisibilities.py', 'scripts/gsm2healpix.py', 'scripts/imageSWHTcoeffs.py', 'scripts/plotHealpix.py', 'scripts/simVisibilities.py', 'scripts/swhtVisibilities.py']
+    scripts = ['scripts/ftVisibilities.py', 'scripts/gsm2healpix.py', 'scripts/imageSWHTcoeffs.py', 'scripts/plotHealpix.py', 'scripts/simVisibilities.py', 'scripts/swhtVisibilities.py'],
     classifiers = [
         'Development Status :: 4 - Beta',
         'Environment :: Console',

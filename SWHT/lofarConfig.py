@@ -34,7 +34,7 @@ def getLofarStation(name=None, affn=None, aafn=None, deltas=None, noarrays=True)
         repoaafn = glob.glob(StaticMetaData+name+'-AntennaArrays.conf')
         repoaffn = glob.glob(StaticMetaData+name+'-AntennaField.conf')
         repodfn = glob.glob(StaticMetaData+name+'-iHBADeltas.conf')
-        if len(repoaafn)==1 and noarrays: #case: only require AntennaField.conf file
+        if len(repoaffn)==1 and noarrays: #case: only require AntennaField.conf file
             repoaffn = repoaffn[0]
             repoaafn = None
             nameValid = True
@@ -80,6 +80,7 @@ class lofarStation():
         
         if name.lower().startswith('cs'): self.stype = 'core'
         elif name.lower().startswith('rs'): self.stype = 'remote'
+        elif name.lower().startswith('kaira'): self.stype = 'kaira'
         else: self.stype = 'international'
 
 def getHBADeltas(fn):
@@ -230,13 +231,13 @@ if __name__ == '__main__':
     deltas = getHBADeltas('data/LOFAR/StaticMetaData/SE607-iHBADeltas.conf')
     print deltas
 
-    #antfield=antennaField('CS013','data/LOFAR/StaticMetaData/CS013-AntennaField.conf')
-    #antfield=antennaField('RS208','data/LOFAR/StaticMetaData/RS208-AntennaField.conf')
-    #antfield=antennaField('UK608','data/LOFAR/StaticMetaData/UK608-AntennaField.conf')
+    #antfield = antennaField('CS013','data/LOFAR/StaticMetaData/CS013-AntennaField.conf')
+    #antfield = antennaField('RS208','data/LOFAR/StaticMetaData/RS208-AntennaField.conf')
+    #antfield = antennaField('UK608','data/LOFAR/StaticMetaData/UK608-AntennaField.conf')
 
-    #antArrys=antennaArrays('CS013','data/LOFAR/StaticMetaData/CS013-AntennaArrays.conf')
-    #antArrys=antennaArrays('RS208','data/LOFAR/StaticMetaData/RS208-AntennaArrays.conf')
-    #antArrys=antennaArrays('UK608','data/LOFAR/StaticMetaData/UK608-AntennaArrays.conf')
+    #antArrys = antennaArrays('CS013','data/LOFAR/StaticMetaData/CS013-AntennaArrays.conf')
+    #antArrys = antennaArrays('RS208','data/LOFAR/StaticMetaData/RS208-AntennaArrays.conf')
+    #antArrys = antennaArrays('UK608','data/LOFAR/StaticMetaData/UK608-AntennaArrays.conf')
     CS013 = lofarStation('CS013','data/LOFAR/StaticMetaData/CS013-AntennaField.conf', 'data/LOFAR/StaticMetaData/CS013-AntennaArrays.conf')
     print CS013.name
     RS208 = lofarStation('RS208','data/LOFAR/StaticMetaData/RS208-AntennaField.conf', 'data/LOFAR/StaticMetaData/RS208-AntennaArrays.conf')
@@ -270,6 +271,9 @@ if __name__ == '__main__':
     getLofarStation(name='SE607')
     getLofarStation(affn='data/LOFAR/StaticMetaData/SE607-AntennaField.conf', aafn='data/LOFAR/StaticMetaData/SE607-AntennaArrays.conf')
     getLofarStation(affn='data/LOFAR/StaticMetaData/SE607-AntennaField.conf', aafn='data/LOFAR/StaticMetaData/SE607-AntennaArrays.conf', deltas='data/LOFAR/StaticMetaData/SE607-iHBADeltas.conf')
+
+    KAIRA = getLofarStation(name='KAIRA')
+    print KAIRA.antField.antpos['LBA'].shape
 
     print 'Made it through without any errors.'
 
