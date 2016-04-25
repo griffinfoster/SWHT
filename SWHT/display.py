@@ -4,7 +4,47 @@ Functions to display images and coefficients
 
 import matplotlib.pyplot as plt
 import numpy as np
-import swht
+import swht, util
+
+def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
+    """Display 3D, equal in phi and theta (Driscoll and Healy mapping) image
+    img: 2D array of image values
+    phi: 2D array of phi values
+    theta: 2D array of thetat values
+        img, phi, theta are of the same shape, they are the output of swht.make3Dimage()
+    dim: 2 element list of resolution in phi and theta [delta phi, delta theta]
+    dmode: string, data mode (abs, real, imaginary, phase)
+    cmap: string, matplotlib colormap name
+    """
+    if dmode.startswith('abs'): img = np.abs(img)
+    elif dmode.startswith('real'): img = img.real
+    elif dmode.startswith('imag'): img = img.imag
+    elif dmode.startswith('phase'): img = np.angle(img)
+    else:
+        print 'WARNING: Unknown data mode, defaulting to absolute value'
+        img = np.abs(img)
+
+    #X = np.cos(theta-(np.pi/2.)) * np.cos(phi)
+    #Y = np.cos(theta-(np.pi/2.)) * np.sin(phi)
+    #Z = np.sin(theta-(np.pi/2.))
+    X, Y, Z = util.sph2cart(theta, phi)
+
+    #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
+    from mpl_toolkits.mplot3d import Axes3D
+    from matplotlib import cm
+    from matplotlib.colors import Normalize
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    imin = img.min()
+    imax = img.max()
+    scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=plt.get_cmap(cmap))
+    #scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
+    #scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.gist_earth_r)
+    scalarMap.set_array(img)
+    C = scalarMap.to_rgba(img)
+    surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+    fig.colorbar(scalarMap)
+    return fig, ax
 
 def dispCoeffs(imgCoeffs, zeroDC=True, vis=False):
     """Display SWHT image coefficient values in a 2 rows x 3 columns plot

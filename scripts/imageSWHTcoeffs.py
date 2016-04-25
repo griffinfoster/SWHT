@@ -54,7 +54,6 @@ if __name__ == '__main__':
 
     #TODO: 2D image function
     #TODO: 3D Driscoll and Healy image function
-    #TODO: healpix image function
 
     #Imaging
     if opts.of is None:
@@ -81,26 +80,7 @@ if __name__ == '__main__':
     elif opts.imageMode.startswith('3'): #Make a 3D equal stepped image
         print 'Generating 3D Image with %i steps in theta and %i steps in phi'%(opts.pixels, opts.pixels)
         img, phi, theta = SWHT.swht.make3Dimage(iImgCoeffs, dim=[opts.pixels, opts.pixels])
-        img = np.abs(img)
-        #X = np.cos(theta-(np.pi/2.)) * np.cos(phi)
-        #Y = np.cos(theta-(np.pi/2.)) * np.sin(phi)
-        #Z = np.sin(theta-(np.pi/2.))
-        X, Y, Z = SWHT.util.sph2cart(theta, phi)
-
-        #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
-        from mpl_toolkits.mplot3d import Axes3D
-        from matplotlib import cm
-        from matplotlib.colors import Normalize
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        imin = img.min()
-        imax = img.max()
-        scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
-        #scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.gist_earth_r)
-        scalarMap.set_array(img)
-        C = scalarMap.to_rgba(img)
-        surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
-        fig.colorbar(scalarMap)
+        fig, ax = SWHT.display.disp3D(img, phi, theta, dmode='abs', cmap='jet')
 
         #save complex image to pickle file
         print 'Writing image to file %s ...'%outFn,
@@ -115,7 +95,7 @@ if __name__ == '__main__':
 
         #save complex image to HEALPix file
         print 'Writing image to file %s ...'%outFn,
-        hp.write_map(outFn, np.abs(m), coord='C')
+        hp.write_map(outFn, np.abs(m), coord='C') #TODO: should this be abs or real?
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
