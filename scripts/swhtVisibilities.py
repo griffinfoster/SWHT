@@ -3,16 +3,17 @@
 Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield MS data (e.g. PAPER) to form a complex or Stokes dirty image dirty image
 """
 
-#TODO: 3D, HEALPix mask
-
 import numpy as np
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 import datetime
 import ephem
-import casacore.tables as tbls
-import healpy as hp
 import sys,os
 import SWHT
+import healpy as hp
+try:
+    import casacore.tables as tbls
+except ImportError:
+    print 'Warning: could not import casacore.tables, will not be able to read measurement sets'
 
 #import scipy.constants
 #cc = scipy.constants.c

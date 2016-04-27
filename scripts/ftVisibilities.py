@@ -7,9 +7,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 import datetime
 import ephem
-import casacore.tables as tbls
 import sys,os
 import SWHT
+try:
+    import casacore.tables as tbls
+except ImportError:
+    print 'Warning: could not import casacore.tables, will not be able to read measurement sets'
 
 #import scipy.constants
 #cc = scipy.constants.c
