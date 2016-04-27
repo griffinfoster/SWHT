@@ -8,6 +8,7 @@ import cPickle as pkl
 import numpy as np
 import datetime
 
+#TODO: hardcode in KAIRA format
 def parse(fn, fmt=None):
     """Parse an input visibility filename to determine meta data and type
     XST files are assumed to follow the SE607 format: <date>_<time>_rcu<id>_sb<subband>_int<integration length>_dur<duration of observation>[_<HBA config in hex>]_xst.dat

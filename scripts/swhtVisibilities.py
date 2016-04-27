@@ -63,6 +63,8 @@ if __name__ == '__main__':
         help = 'Save output image coefficients to a pickle file using this name (include .pkl extention), default: tempCoeffs.pkl')
     o.add_option('-I', '--image', dest='imageMode', default='2D',
         help='Imaging mode: 2D (hemisphere flattened), 3D, healpix, coeff (coefficients) default: 2D')
+    o.add_option('--uvwplot', dest='uvwplot', action='store_true',
+        help='Display a 3D UVW coverage/sampling plot')
     opts, args = o.parse_args(sys.argv[1:])
 
     #parse subbands
@@ -75,11 +77,6 @@ if __name__ == '__main__':
     yxVisComb = np.array([]).reshape(0, len(sbs))
     yyVisComb = np.array([]).reshape(0, len(sbs))
     uvwComb = np.array([]).reshape(0, 3, len(sbs))
-
-    #from mpl_toolkits.mplot3d import Axes3D
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111, projection='3d')
-    #clr = ['r', 'g', 'b', 'k', 'y', 'm']
 
     if (not (opts.station is None)) or (not (opts.ant_field is None)): #If using LOFAR data, get station information
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas)
@@ -230,12 +227,6 @@ if __name__ == '__main__':
             yyVisComb = np.concatenate((yyVisComb, yyVis))
             uvwComb = np.concatenate((uvwComb, uvw))
 
-            #ax.scatter(uvw[:,0], uvw[:,1], uvw[:,2], c=clr[vid])
-
-            ##uv coverage plot
-            #plt.plot(uvw[:,0,:], uvw[:,1,:], '.')
-            #plt.show()
-
         elif fDict['fmt']=='ms': #MS-based visibilities
             decomp = True
 
@@ -292,10 +283,6 @@ if __name__ == '__main__':
             yyVisComb = np.concatenate((yyVisComb, yyVis))
             uvwComb = np.concatenate((uvwComb, uvwRotRepeat))
 
-            ##uv coverage plot
-            #plt.plot(uvw[:,0], uvw[:,1], '.')
-            #plt.show()
-
         elif fDict['fmt']=='pkl':
             print 'Loading Image Coefficients file:', visFn
             coeffDict = SWHT.fileio.readCoeffPkl(visFn)
@@ -308,6 +295,10 @@ if __name__ == '__main__':
             print 'ERROR: unknown data format, exiting'
             exit()
 
+    if opts.uvwplot: #display the total UVW coverage
+        fig, ax = SWHT.display.dispVis3D(uvwComb)
+        plt.show()
+
     #compute the ideal l_max given the average solid angle angular resolution of an l-mode is Omega ~ 4pi / 2l steradian, and if the PSF is circular theta ~ pi / l radians
     blLen = np.sqrt(uvwComb[:,0,:]**2. + uvwComb[:,1,:]**2. + uvwComb[:,2,:]**2.) #compute the baseline lengths (in meters)
     maxBl = np.max(blLen) #maximum baseline length (in meters)
@@ -316,13 +307,6 @@ if __name__ == '__main__':
     print 'MAXIMUM RES: %f (radians) %f (deg)'%(maxRes, maxRes * (180. / np.pi))
     idealLmax = int(np.pi / maxRes)
     print 'SUGGESTED L_MAX: %i, %i (oversample 3), %i (oversample 5)'%(idealLmax, idealLmax*3, idealLmax*5)
-
-    #from mpl_toolkits.mplot3d import Axes3D
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111, projection='3d')
-    #ax.scatter(uvwComb[:,0], uvwComb[:,1], uvwComb[:,2])
-    #plt.show()
-    #exit()
 
     #decompose the input visibilities into spherical harmonics visibility coefficeints
     if decomp:

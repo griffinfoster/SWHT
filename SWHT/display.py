@@ -128,3 +128,33 @@ def dispCoeffs(imgCoeffs, zeroDC=True, vis=False):
 
     return fig, ax
 
+def dispVis3D(uvw):
+    """3D plot of UVW coverage/sampling
+    uvw: (N, 3) array of UVW coordinates
+
+    returns: matplotlib figure and subplots
+    """
+    from mpl_toolkits.mplot3d import Axes3D
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    
+    ax.scatter(uvw[:,0], uvw[:,1], uvw[:,2], edgecolors='none', alpha=0.5)
+    ax.set_xlabel('U (m)')
+    ax.set_ylabel('V (m)')
+    ax.set_zlabel('W (m)')
+
+    return fig, ax
+
+def dispVis2D(uvw):
+    """2D plot of UV coverage/sampling
+    uvw: (N, 3) array of UVW coordinates
+
+    returns: matplotlib figure and subplots
+    """
+    fig, ax = plt.subplots(1, 1)
+    ax.scatter(uvw[:,0], uvw[:,1], edgecolors='none', alpha=0.5)
+    ax.set_xlabel('U (m)')
+    ax.set_ylabel('V (m)')
+
+    return fig, ax
+
