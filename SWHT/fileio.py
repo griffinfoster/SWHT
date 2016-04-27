@@ -28,7 +28,7 @@ def parse(fn, fmt=None):
         # Nyquist mode I (= LBA array)
         # Subband 195 (= approx. 38.1 MHz)
         # ~3600 integrations per XST file
-        fDict['fmt'] = 'kaira'
+        fDict['fmt'] = fmt
         metaData = fn.split('/')[-1].split('_')
         fDict['ts'] = datetime.datetime(year=int(metaData[0][:4]), month=int(metaData[0][4:6]), day=int(metaData[0][6:]), hour=int(metaData[1][:2]), minute=int(metaData[1][2:4]), second=int(metaData[1][4:]))
         fDict['rcu'] = 1
@@ -223,11 +223,40 @@ def lofarSE607XST(fn, sb, nantpol, antGains=None):
     """
     corrMatrix = np.fromfile(fn, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
     if antGains is None:
-        sbCorrMatrix = corrMatrix #shape (nantpol, nantpol)
+        sbCorrMatrix = corrMatrix #shape (1, nantpol, nantpol)
     else: #Apply Gains
         sbAntGains = antGains[sb][np.newaxis].T
         sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
-        sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol)
+        sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (1, nantpol, nantpol)
+    tDeltas = [datetime.timedelta(0, 0)] #no time offset
+
+    print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
+
+    return sbCorrMatrix, tDeltas
+
+def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None):
+    """Read in correlation matrix from a KAIRA format XST file
+    fn: string, XST filename
+    sb: [int], subband ID, 1 element list for consistency with lofarACCSelectSbs()
+    nantpol: int, number of antenna-polarizations
+    antGains: antenna gains from lofarConfig.readCalTable()
+
+    returns:
+        sbCorrMatrix: correlation matrix from each subband [1, nantpol, nantpol] for consistency with lofarACCSelectSbs()
+        tDeltas: [1] list, time offset from end of file timestep, set to 0 but kept for consistency with lofarACCSelectSbs()
+    """
+    corrMatrix = np.fromfile(fn, dtype='complex') # read in the correlation matrix
+    nints = corrMatrix.shape[0]/(nantpol * nantpol) # number of integrations
+    corrMatrix = np.reshape(corrMatrix, (nints, nantpol, nantpol))
+
+    if antGains is None:
+        #TODO: only using the last integration
+        sbCorrMatrix = corrMatrix[-1].reshape(1, nantpol, nantpol) #shape (1, nantpol, nantpol)
+    else: #Apply Gains
+        #TODO: untested
+        sbAntGains = antGains[sb][np.newaxis].T
+        sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+        sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (1, nantpol, nantpol)
     tDeltas = [datetime.timedelta(0, 0)] #no time offset
 
     print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
@@ -395,6 +424,60 @@ def readSE607XST(fn, fDict, lofarStation, sbs, calTable=None):
     sbCorrMatrix, tDeltas = lofarSE607XST(fn, fDict['sb'], nantpol, antGains)
     print 'done'
     
+    # create station observer
+    obs = lofarObserver(lat, lon, elev, fDict['ts'])
+    obsLat = float(obs.lat) #radians
+    obsLong = float(obs.long) #radians
+    print 'Observatory:', obs
+
+    # get the UVW and visibilities for the different subbands
+    vis, uvw, LSTangle = lofarGenUVW(sbCorrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
+
+    return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
+
+def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None):
+    """Return the visibilites and UVW coordinates from a KAIRA LOFAR XST format file
+    fn: XST filename
+    fDict: dictionary of file format meta data, see parse()
+    lofarStation: instance, see lofarConfig.py
+    sbs: 1-D array of subband IDs (in range 0-511)
+    calTable: station gain calibration table filename
+
+    returns:
+        vis: visibilities [4, Nsamples, Nsubbands]
+        uvw: UVW coordinates [Nsamples, 3, Nsubbands]
+        freqs: frequencies [Nsubbands]
+        obsdata: [latitude, longitude, LST]
+    """
+
+    # longitude and latitude of array
+    lat, lon, elev = lofarArrayLatLong(lofarStation, lofarConfig.rcuInfo[fDict['rcu']]['array_type'])
+
+    # antenna positions
+    ants = lofarStation.antField.antpos[lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
+    if 'elem' in fDict: # update the antenna positions if there is an element string
+        ants = lofarHBAAntPositions(ants, lofarStation, fDict['elem'])
+    nants = ants.shape[0]
+    print 'NANTENNAS:', nants
+
+    # frequency information
+    freqs, nchan, bw = lofarFreqs(fDict, sbs)
+    print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
+    npols = 2
+
+    #read LOFAR Calibration Table
+    if not (calTable is None):
+        if antGains is None: #read the Cal Table only once
+            print 'Using CalTable:', calTable
+            antGains = lofarConfig.readCalTable(calTable, nants, nchan, npols)
+    else: antGains = None
+
+    # get correlation matrix for subbands selected
+    nantpol = nants * npols
+    print 'Reading in visibility data file ...',
+    sbCorrMatrix, tDeltas = lofarKAIRAXST(fn, fDict['sb'], nantpol, fDict['int'], antGains)
+    print 'done'
+
     # create station observer
     obs = lofarObserver(lat, lon, elev, fDict['ts'])
     obsLat = float(obs.lat) #radians

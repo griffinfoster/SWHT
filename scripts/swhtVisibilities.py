@@ -74,8 +74,6 @@ if __name__ == '__main__':
     # setup variables for combined visibilities and uvw samples
     visComb = np.array([]).reshape(4, 0, len(sbs))
     uvwComb = np.array([]).reshape(0, 3, len(sbs))
-    print visComb.shape
-    print uvwComb.shape
 
     dataFmt = None
     if (not (opts.station is None)) or (not (opts.ant_field is None)): # If using LOFAR data, get station information
@@ -92,6 +90,7 @@ if __name__ == '__main__':
         fDict = SWHT.fileio.parse(visFn, fmt=dataFmt)
 
         #TODO: function to read XST (KAIRA format), input(acc filename, station)
+        print fDict
 
         # Pull out the visibility data in a (u,v,w) format
         if fDict['fmt']=='acc': # LOFAR station all subbands ACC file visibilities
@@ -117,6 +116,22 @@ if __name__ == '__main__':
                 sbs = fDict['sb']
 
             vis, uvw, freqs, obsInfo = SWHT.fileio.readSE607XST(visFn, fDict, lofarStation, sbs)
+            [obsLat, obsLong, LSTangle] = obsInfo
+
+            # add visibilities to previously processed files
+            visComb = np.concatenate((visComb, vis), axis=1)
+            uvwComb = np.concatenate((uvwComb, uvw), axis=0)
+
+        elif fDict['fmt']=='KAIRA': # KAIRA LOFAR XST format visibilities
+            decomp = True
+            if opts.override: # Override XST filename metadata
+                fDict['rcu'] = opts.rcumode
+                fDict['sb'] = sbs
+                fDict['int'] = opts.int_time
+            else:
+                sbs = fDict['sb']
+
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readKAIRAXST(visFn, fDict, lofarStation, sbs)
             [obsLat, obsLong, LSTangle] = obsInfo
 
             # add visibilities to previously processed files
@@ -191,6 +206,7 @@ if __name__ == '__main__':
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
 
+    #TODO: not doing the correct projection
     if opts.imageMode.startswith('2'): # Make a 2D hemispheric image
         fov = opts.fov * (np.pi/180.) # Field of View in radians
         px = [opts.pixels, opts.pixels]
