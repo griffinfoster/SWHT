@@ -79,15 +79,17 @@ if __name__ == '__main__':
     yyVisComb = np.array([]).reshape(0, len(sbs))
     uvwComb = np.array([]).reshape(0, 3, len(sbs))
 
+    dataFmt = None
     if (not (opts.station is None)) or (not (opts.ant_field is None)): #If using LOFAR data, get station information
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas)
         antGains = None #Setup variable so that the gain table isn't re-read for every file if used
+        if lofarStation.name=='KAIRA': dataFmt='KAIRA'
 
     #get filenames to image
     visFiles = args
     for vid,visFn in enumerate(visFiles):
         print 'Using %s (%i/%i)'%(visFn, vid+1, len(visFiles))
-        fDict = SWHT.fileio.parse(visFn)
+        fDict = SWHT.fileio.parse(visFn, fmt=dataFmt)
 
         #TODO: function to read ACC file
         #TODO: function to read XST (HBA format)

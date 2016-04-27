@@ -8,7 +8,6 @@ import cPickle as pkl
 import numpy as np
 import datetime
 
-#TODO: hardcode in KAIRA format
 def parse(fn, fmt=None):
     """Parse an input visibility filename to determine meta data and type
     XST files are assumed to follow the SE607 format: <date>_<time>_rcu<id>_sb<subband>_int<integration length>_dur<duration of observation>[_<HBA config in hex>]_xst.dat
@@ -18,6 +17,21 @@ def parse(fn, fmt=None):
     fDict['fn'] = fn
     if fn.lower().endswith('.ms') or fmt=='ms':
         fDict['fmt'] = 'ms'
+    elif fmt=='KAIRA':
+        # KAIRA is a special LOFAR-like station, the standard XST format is:
+        # filename: [YYYYMMDD]_[HHMMSS]_xst.dat
+        # 1 second integrations
+        # 48 antennas (= 96 RCUs)
+        # Nyquist mode I (= LBA array)
+        # Subband 195 (= approx. 38.1 MHz)
+        # ~3600 integrations per XST file
+        fDict['fmt'] = 'kaira'
+        metaData = fn.split('/')[-1].split('_')
+        fDict['ts'] = datetime.datetime(year=int(metaData[0][:4]), month=int(metaData[0][4:6]), day=int(metaData[0][6:]), hour=int(metaData[1][:2]), minute=int(metaData[1][2:4]), second=int(metaData[1][4:]))
+        fDict['rcu'] = 1
+        fDict['sb'] = np.array([195])
+        fDict['int'] = 1.
+        fDict['dur'] = 1.
     elif fn.lower().endswith('.dat') or fn.lower().endswith('.dat.sim') or fmt=='acc' or fmt=='xst':
         metaData = fn.split('/')[-1].split('_')
         fDict['ts'] = datetime.datetime(year=int(metaData[0][:4]), month=int(metaData[0][4:6]), day=int(metaData[0][6:]), hour=int(metaData[1][:2]), minute=int(metaData[1][2:4]), second=int(metaData[1][4:]))
