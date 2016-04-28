@@ -151,6 +151,7 @@ if __name__ == '__main__':
                 sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
                 sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol)
             meants = fDict['ts']
+            print sbCorrMatrix.shape
 
         print 'done'
         print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
@@ -184,9 +185,9 @@ if __name__ == '__main__':
         yxVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 1::2, 0::2]).flatten()
         yyVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 1::2, 1::2]).flatten()
 
-        ##uv coverage plot
-        #plt.plot(uvw[:,0], uvw[:,1], '.')
-        #plt.show()
+        #uv coverage plot
+        plt.plot(uvw[:,0], uvw[:,1], '.')
+        plt.show()
 
     elif fDict['fmt']=='ms': #MS-based visibilities
 

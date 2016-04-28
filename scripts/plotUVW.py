@@ -6,14 +6,9 @@ Plot the UVW coverage/sampling
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
-#import ephem
 import sys,os
 import SWHT
 import healpy as hp
-#try:
-#    import casacore.tables as tbls
-#except ImportError:
-#    print 'Warning: could not import casacore.tables, will not be able to read measurement sets'
 
 #import scipy.constants
 #cc = scipy.constants.c
