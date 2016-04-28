@@ -66,6 +66,8 @@ if __name__ == '__main__':
         help='Imaging mode: 2D (hemisphere flattened), 3D, healpix, coeff (coefficients) default: 2D')
     o.add_option('--uvwplot', dest='uvwplot', action='store_true',
         help='Display a 3D UVW coverage/sampling plot')
+    o.add_option('-t', '--times', dest='times', default='0',
+        help = 'KAIRA ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
     opts, args = o.parse_args(sys.argv[1:])
 
     # parse subbands
@@ -88,9 +90,6 @@ if __name__ == '__main__':
     for vid,visFn in enumerate(visFiles):
         print 'Using %s (%i/%i)'%(visFn, vid+1, len(visFiles))
         fDict = SWHT.fileio.parse(visFn, fmt=dataFmt)
-
-        #TODO: function to read XST (KAIRA format), input(acc filename, station)
-        print fDict
 
         # Pull out the visibility data in a (u,v,w) format
         if fDict['fmt']=='acc': # LOFAR station all subbands ACC file visibilities
@@ -131,7 +130,7 @@ if __name__ == '__main__':
             else:
                 sbs = fDict['sb']
 
-            vis, uvw, freqs, obsInfo = SWHT.fileio.readKAIRAXST(visFn, fDict, lofarStation, sbs)
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readKAIRAXST(visFn, fDict, lofarStation, sbs, times=opts.times)
             [obsLat, obsLong, LSTangle] = obsInfo
 
             # add visibilities to previously processed files
@@ -167,19 +166,19 @@ if __name__ == '__main__':
         fig, ax = SWHT.display.dispVis3D(uvwComb)
         plt.show()
 
-    # compute the ideal l_max given the average solid angle angular resolution of an l-mode is Omega ~ 4pi / 2l steradian, and if the PSF is circular theta ~ pi / l radians
-    blLen = np.sqrt(uvwComb[:,0,:]**2. + uvwComb[:,1,:]**2. + uvwComb[:,2,:]**2.) # compute the baseline lengths (in meters)
-    maxBl = np.max(blLen) # maximum baseline length (in meters)
-    meanWl = cc / np.mean(freqs) # mean observing wavelength
-    maxRes = 1.22 * meanWl / maxBl
-    print 'MAXIMUM RES: %f (radians) %f (deg)'%(maxRes, maxRes * (180. / np.pi))
-    idealLmax = int(np.pi / maxRes)
-    print 'SUGGESTED L_MAX: %i, %i (oversample 3), %i (oversample 5)'%(idealLmax, idealLmax*3, idealLmax*5)
-
     ####################
     ## Decompose the input visibilities into spherical harmonics visibility coefficeints
     ####################
     if decomp:
+        # compute the ideal l_max given the average solid angle angular resolution of an l-mode is Omega ~ 4pi / 2l steradian, and if the PSF is circular theta ~ pi / l radians
+        blLen = np.sqrt(uvwComb[:,0,:]**2. + uvwComb[:,1,:]**2. + uvwComb[:,2,:]**2.) # compute the baseline lengths (in meters)
+        maxBl = np.max(blLen) # maximum baseline length (in meters)
+        meanWl = cc / np.mean(freqs) # mean observing wavelength
+        maxRes = 1.22 * meanWl / maxBl
+        print 'MAXIMUM RES: %f (radians) %f (deg)'%(maxRes, maxRes * (180. / np.pi))
+        idealLmax = int(np.pi / maxRes)
+        print 'SUGGESTED L_MAX: %i, %i (oversample 3), %i (oversample 5)'%(idealLmax, idealLmax*3, idealLmax*5)
+
         print 'AUTO-CORRELATIONS:', opts.autos
         if not opts.autos: # remove auto-correlations
             autoIdx = np.argwhere(uvwComb[:,0]**2. + uvwComb[:,1]**2. + uvwComb[:,2]**2. == 0.)
@@ -249,4 +248,4 @@ if __name__ == '__main__':
     if not opts.nodisplay:
         if opts.imageMode.startswith('heal'): hp.mollview(np.abs(m))
         plt.show()
-    
+

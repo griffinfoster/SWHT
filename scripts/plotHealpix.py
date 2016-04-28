@@ -59,30 +59,30 @@ if __name__ == '__main__':
 
     m = None
     w = None
-    coordSys = 'C' #default to celestial coordinates
+    coordSys = 'C' # default to celestial coordinates
     for fid,fn in enumerate(args):
         print 'Opening: %s (%i/%i)'%(fn, fid+1, len(args))
         hpMap = hp.read_map(fn, field=None, h=True)
         hdr = hpMap[-1]
-        if len(hpMap)==2: #no weight map
+        if len(hpMap)==2: # no weight map
             if m is None: m = hpMap[0]
             else: m += hpMap[0]
-        elif len(hpMap)==3: #weight map
+        elif len(hpMap)==3: # weight map
             if m is None: m,w,hdr = hpMap
             else:
                 m += hpMap[0]
                 w += hpMap[1]
 
-    #set map projection
-    for item in hdr: #get coordinate system from the header
+    # set map projection
+    for item in hdr: # get coordinate system from the header
         if item[0].startswith('COORDSYS'): coordSys = item[1]
     if len(opts.proj) == 1:
         coord_proj = coordSys + opts.proj.upper()
-    else: #override the projection
+    else: # override the projection
         coord_proj = opts.proj.upper()
     print 'Using coordinate projection: %s --> %s'%(coord_proj[0], coord_proj[1])
 
-    if w is not None: m /= w #divide by the pixel weights
+    if w is not None: m /= w # divide by the pixel weights
     
     print 'Map :: min=%f :: max=%f'%(np.nanmin(m), np.nanmax(m))
 
@@ -92,7 +92,7 @@ if __name__ == '__main__':
 
     if opts.mode.lower()=='s': m = np.sqrt(m - np.min(np.nan_to_num(m)))
 
-    #mask out declination regions, only works properly when the input map is in Celestial coordinates
+    # mask out declination regions, only works properly when the input map is in Celestial coordinates
     nside = hp.pixelfunc.get_nside(m)
     if opts.dec_min is None: dec_min = 180.
     else:
@@ -107,7 +107,7 @@ if __name__ == '__main__':
         ring_max = hp.pixelfunc.ang2pix(nside, theta_max, 0.)
         m[:ring_max] = hp.pixelfunc.UNSEEN
 
-    #replace nan values with zero
+    # replace nan values with zero
     if opts.fill: m = np.nan_to_num(m)
 
     fig = plt.figure(1, figsize=(12,8))
@@ -121,14 +121,14 @@ if __name__ == '__main__':
     elif opts.mode.lower()=='s':
         norm = None
 
-    if opts.visu.lower().startswith('moll'): #Mollweide projection
+    if opts.visu.lower().startswith('moll'): # Mollweide projection
         hp.mollview(m, coord=coord_proj, norm=norm, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
-    elif opts.visu.lower().startswith('cart'): #Cartesian
+    elif opts.visu.lower().startswith('cart'): # Cartesian
         hp.cartview(m, coord=coord_proj, norm=norm, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
-    elif opts.visu.lower().startswith('ortho'): #Orthographic
+    elif opts.visu.lower().startswith('ortho'): # Orthographic
         hp.orthview(m, coord=coord_proj, norm=norm, max=opts.max, min=opts.min, cmap=plt.get_cmap(opts.cmap), cbar=cbar, fig=1, unit=unit, title=opts.title, xsize=xsize, rot=rot)
 
-    #set grid lines
+    # set grid lines
     hp.graticule(dpar=5, dmer=5)
 
     if not(opts.savefig is None):

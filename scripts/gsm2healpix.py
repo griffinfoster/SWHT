@@ -3,7 +3,7 @@
 Simple script to convert the output of GSM (http://space.mit.edu/~angelica/gsm/index.html) into a HEALPIX FITS file
 """
 
-#try to use pandas to read in the GSM text file as it has a faster parser than numpy
+# try to use pandas to read in the GSM text file as it has a faster parser than numpy
 useNumpy = False
 try:
     import pandas as pd
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
         start_time = time.time()
         if useNumpy:
-            m = np.genfromtxt(fn) #slightly faster than: m = np.loadtxt(fn)
+            m = np.genfromtxt(fn) # slightly faster than: m = np.loadtxt(fn)
         else:
             m = pd.read_csv(fn, sep=' ', header=None, engine='c')[3].values
         
@@ -41,12 +41,13 @@ if __name__ == '__main__':
 
         if opts.celestial:
             print '\tConverting to Celestial Coordinates'
-            #the output of gsm is in galactic coordinates, but it will be more useful in celestial coordinates for interferometry
+            # the output of gsm is in galactic coordinates, but it will be more useful in celestial coordinates for interferometry
             r = hp.Rotator(coord=['C','G'])  # Transforms celestial coordinates to galactic
             celeTheta, celePhi = hp.pix2ang(nside, np.arange(npix)) #get celestial coordinates from pixel numbers
             galTheta, galPhi = r(celeTheta, celePhi) #convert celestial coordinates to galactic
             galPix = hp.ang2pix(nside, galTheta, galPhi) #get pixel numbers from galactic coordinates
-            #Now, this next bit is just a little bit dodgy as there is not a direct 1-to-1 conversion between pixels, some galactic pixels are repeated and some are dropped
+            # Now, this next bit is just a little bit dodgy as there is not a direct 1-to-1 conversion between pixels, some galactic pixels are repeated and some are dropped
+            #TODO: use a better gridding method
             mCele = m[galPix]
             hp.write_map(outfn, mCele, coord='C')
         else:

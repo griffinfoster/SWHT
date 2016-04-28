@@ -34,9 +34,8 @@ if __name__ == '__main__':
         help='If plotting coefficients, convert them to visibility coefficients')
     opts, args = o.parse_args(sys.argv[1:])
 
-    #get filenames to image
     #TODO: can add together image coefficients, just need to consider the meta data setup
-    coeffFiles = args
+    coeffFiles = args # filenames to image
     for cid,coeffFn in enumerate(coeffFiles):
         print 'Using %s (%i/%i)'%(coeffFn, cid+1, len(coeffFiles))
         fDict = SWHT.fileio.parse(coeffFn)
@@ -53,48 +52,51 @@ if __name__ == '__main__':
             print 'ERROR: unknown data format, exiting'
             exit()
 
-    #Imaging
+    ####################
+    ## Imaging
+    ####################
     if opts.of is None:
         if opts.imageMode.startswith('heal'): outFn = 'tempImage.hpx'
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
 
-    if opts.imageMode.startswith('2'): #Make a 2D hemispheric image
-        fov = opts.fov * (np.pi/180.) #Field of View in radians
+    #TODO: not doing the correct projection
+    if opts.imageMode.startswith('2'): # Make a 2D hemispheric image
+        fov = opts.fov * (np.pi/180.) # Field of View in radians
         px = [opts.pixels, opts.pixels]
-        res = fov/px[0] #pixel resolution
+        res = fov/px[0] # pixel resolution
         print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
         print 'Resolution(deg):', res*180./np.pi
-        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
         fig, ax = SWHT.display.disp2D(img, dmode='abs', cmap='jet')
 
-        #save complex image to pickle file
+        # save complex image to pickle file
         print 'Writing image to file %s ...'%outFn,
         SWHT.fileio.writeSWHTImgPkl(outFn, img, fDict, mode='2D')
         print 'done'
 
-    elif opts.imageMode.startswith('3'): #Make a 3D equal stepped image
+    elif opts.imageMode.startswith('3'): # Make a 3D equal stepped image
         print 'Generating 3D Image with %i steps in theta and %i steps in phi'%(opts.pixels, opts.pixels)
         img, phi, theta = SWHT.swht.make3Dimage(iImgCoeffs, dim=[opts.pixels, opts.pixels])
         fig, ax = SWHT.display.disp3D(img, phi, theta, dmode='abs', cmap='jet')
 
-        #save complex image to pickle file
+        # save complex image to pickle file
         print 'Writing image to file %s ...'%outFn,
         SWHT.fileio.writeSWHTImgPkl(outFn, [img, phi, theta], fDict, mode='3D')
         print 'done'
 
-    elif opts.imageMode.startswith('heal'): #plot healpix and save healpix file using the opts.pkl name
+    elif opts.imageMode.startswith('heal'): # plot healpix and save healpix file using the opts.pkl name
         print 'Generating HEALPix Image with %i NSIDE'%(opts.pixels)
-        #use the healpy.alm2map function as it is much faster, there is a ~1% difference between the 2 functions, this is probably due to the inner workings of healpy
+        # use the healpy.alm2map function as it is much faster, there is a ~1% difference between the 2 functions, this is probably due to the inner workings of healpy
         #m = SWHT.swht.makeHEALPix(iImgCoeffs, nside=opts.pixels)
         m = hp.alm2map(SWHT.util.array2almVec(iImgCoeffs), opts.pixels)
 
-        #save complex image to HEALPix file
+        # save complex image to HEALPix file
         print 'Writing image to file %s ...'%outFn,
         hp.write_map(outFn, np.abs(m), coord='C') #TODO: should this be abs or real?
         print 'done'
     
-    elif opts.imageMode.startswith('coeff'): #plot the complex coefficients
+    elif opts.imageMode.startswith('coeff'): # plot the complex coefficients
         fig, ax = SWHT.display.dispCoeffs(iImgCoeffs, zeroDC=True, vis=opts.viscoeffs)
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)

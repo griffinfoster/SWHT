@@ -234,12 +234,16 @@ def lofarSE607XST(fn, sb, nantpol, antGains=None):
 
     return sbCorrMatrix, tDeltas
 
-def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None):
+def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None, times='0'):
     """Read in correlation matrix from a KAIRA format XST file
     fn: string, XST filename
     sb: [int], subband ID, 1 element list for consistency with lofarACCSelectSbs()
     nantpol: int, number of antenna-polarizations
     antGains: antenna gains from lofarConfig.readCalTable()
+    times: the KAIRA XST files contain ~3600 integrations of 1 second each, this will result in a slow SWHT, to reduce this a number of options can be used
+        i) a[seconds] : average together integrations into correlation matrixs for every block of time, e.g. times='a600' will average for 600 seconds, which is reasonable for the low resolution KAIRA station
+        ii) select unique integrations: for multiple integrations use X,Y,Z and for range use X_Y notation, these can be combined, e.g. 0,100,200,300_310,400, default to function is to select only the first integration
+        iii) d[step size]: decimate the integrations to select an integration every 'step size', e.g. d600 will select every 600th integration
 
     returns:
         sbCorrMatrix: correlation matrix from each subband [1, nantpol, nantpol] for consistency with lofarACCSelectSbs()
@@ -249,19 +253,44 @@ def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None):
     nints = corrMatrix.shape[0]/(nantpol * nantpol) # number of integrations
     corrMatrix = np.reshape(corrMatrix, (nints, nantpol, nantpol))
 
-    if antGains is None:
-        #TODO: only using the last integration
-        sbCorrMatrix = corrMatrix[-1].reshape(1, nantpol, nantpol) #shape (1, nantpol, nantpol)
-    else: #Apply Gains
-        #TODO: untested
-        sbAntGains = antGains[sb][np.newaxis].T
-        sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
-        sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (1, nantpol, nantpol)
-    tDeltas = [datetime.timedelta(0, 0)] #no time offset
+    # determine unique subbands to select
+    if times.startswith('a'): # averaging
+        intLen = float(times[1:]) * intTime
+        nAvgInts = int(nints/intLen)
+        print 'KAIRA: avergaing XST file to %.2f second integrations, this will produce %i integrations'%(intLen, nAvgInts)
+        # clip off extra integrations to make the initial array a factor of the number of averaged integrations
+        # reshape array
+        # compute the mean for the axis to produce the averaged array
+        reducedCorrMatrix = np.mean(corrMatrix[:int(intLen * nAvgInts)].reshape( nAvgInts, intLen, nantpol, nantpol), axis=1)
+        tids = np.linspace(intLen/2., intLen * (nAvgInts-0.5), nAvgInts) # take the centre integration time to be the time ID
+        print tids
+    elif times.startswith('d'): #decimation
+        decimateFactor = int(times[1:])
+        tids = np.arange(nints)[::decimateFactor]
+        print 'KAIRA: decimating XST file to %i integrations'%(tids.shape[0])
+        reducedCorrMatrix = corrMatrix[tids]
+    else: # unique IDs
+        tids = np.array(util.convert_arg_range(times))
+        print 'KAIRA: selecting %i unique integrations'%(tids.shape[0])
+        reducedCorrMatrix = corrMatrix[tids]
 
-    print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
+    tDeltas = [] # integration timestamp deltas from the end of file
+    for tIdx, tid in enumerate(tids):
+        if antGains is not None: # Apply Gains
+            # TODO: these two lines are in the loop but does not need to be, only need to be called once, infact I think all 3 lines do not need a loop
+            sbAntGains = antGains[sb][np.newaxis].T
+            sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+            reducedCorrMatrix[tIdx] = np.multiply(sbVisGains, reducedCorrMatrix[tid, :, :]) #select out a single integration, shape (nantpol, nantpol)
 
-    return sbCorrMatrix, tDeltas
+        # correct the time relative to the EOF timestamp
+        tOffset = (nints - tid - 1) * intTime # the timestamp in the filename is for the last integration
+        rem = tOffset - int(tOffset) # subsecond remainder
+        tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
+
+    print 'ORIGINAL CORRELATION MATRIX SHAPE', corrMatrix.shape
+    print 'REDUCED CORRELATION MATRIX SHAPE', reducedCorrMatrix.shape
+
+    return reducedCorrMatrix, tDeltas
 
 def lofarObserver(lat, lon, elev, ts):
     """Create an ephem Observer for a LOFAR station
@@ -281,6 +310,7 @@ def lofarObserver(lat, lon, elev, ts):
     
     return obs
 
+# TODO: generalize to [Nsubbands, Nints, nantpol, nantpol]
 def lofarGenUVW(sbCorrMatrix, ants, obs, sbs, ts):
     """Generate UVW coordinates from antenna positions, timestamps/subbands
     sbCorrMatrix: [Nsubbands, nantpol, nantpol] array, correlation matrix for each subband
@@ -435,13 +465,17 @@ def readSE607XST(fn, fDict, lofarStation, sbs, calTable=None):
 
     return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
 
-def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None):
+def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None, times='0'):
     """Return the visibilites and UVW coordinates from a KAIRA LOFAR XST format file
     fn: XST filename
     fDict: dictionary of file format meta data, see parse()
     lofarStation: instance, see lofarConfig.py
     sbs: 1-D array of subband IDs (in range 0-511)
     calTable: station gain calibration table filename
+    times: the KAIRA XST files contain ~3600 integrations of 1 second each, this will result in a slow SWHT, to reduce this a number of options can be used
+        i) a[seconds] : average together integrations into correlation matrixs for every block of time, e.g. times='a600' will average for 600 seconds, which is reasonable for the low resolution KAIRA station
+        ii) select unique integrations: for multiple integrations use X,Y,Z and for range use X_Y notation, these can be combined, e.g. 0,100,200,300_310,400, default to function is to select only the first integration
+        iii) d[step size]: decimate the integrations to select an integration every 'step size', e.g. d600 will select every 600th integration
 
     returns:
         vis: visibilities [4, Nsamples, Nsubbands]
@@ -475,7 +509,7 @@ def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None):
     # get correlation matrix for subbands selected
     nantpol = nants * npols
     print 'Reading in visibility data file ...',
-    sbCorrMatrix, tDeltas = lofarKAIRAXST(fn, fDict['sb'], nantpol, fDict['int'], antGains)
+    sbCorrMatrix, tDeltas = lofarKAIRAXST(fn, fDict['sb'], nantpol, fDict['int'], antGains, times=times)
     print 'done'
 
     # create station observer
@@ -486,6 +520,8 @@ def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None):
 
     # get the UVW and visibilities for the different subbands
     vis, uvw, LSTangle = lofarGenUVW(sbCorrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
+
+    exit()
 
     return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
 
@@ -558,6 +594,8 @@ if __name__ == '__main__':
 
     fDict = parse('../examples/20150915_191137_rcu5_sb60_int10_dur10_elf0f39fe2034ea85fc02b3cc1544863053b328fd83291e880cd0bf3c3d3a50a164a3f3e0c070c73d073f4e43849c0e93b_xst.dat')
     print fDict
+
+    #TODO: KAIRA test
 
     print '...Made it through without errors'
 
