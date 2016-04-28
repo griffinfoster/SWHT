@@ -38,21 +38,21 @@ def parse(fn, fmt=None):
     elif fn.lower().endswith('.dat') or fn.lower().endswith('.dat.sim') or fmt=='acc' or fmt=='xst':
         metaData = fn.split('/')[-1].split('_')
         fDict['ts'] = datetime.datetime(year=int(metaData[0][:4]), month=int(metaData[0][4:6]), day=int(metaData[0][6:]), hour=int(metaData[1][:2]), minute=int(metaData[1][2:4]), second=int(metaData[1][4:]))
-        if metaData[2].startswith('acc'): #the file is a LOFAR ACC file
+        if metaData[2].startswith('acc'): # the file is a LOFAR ACC file
             fDict['fmt'] = 'acc'
             fDict['shape'] = map(int, metaData[3].split('.')[0].split('x'))
-        elif metaData[-1].startswith('xst.dat'): #the file is a SE607 format LOFAR XST file
+        elif metaData[-1].startswith('xst.dat'): # the file is a SE607 format LOFAR XST file
             fDict['fmt'] = 'xst'
             fDict['rcu'] = int(metaData[2][3:])
             fDict['sb'] = np.array( [int(metaData[3][2:])] )
             fDict['int'] = float(metaData[4][3:])
             fDict['dur'] = float(metaData[5][3:])
-            if len(metaData)==8: #HBA all-sky file, get element identifiers
+            if len(metaData)==8: # HBA all-sky file, get element identifiers
                 fDict['elem'] = metaData[6][2:]
-    elif fn.lower().endswith('.pkl') or fmt=='pkl': #the file is a set of SWHT image coefficients
+    elif fn.lower().endswith('.pkl') or fmt=='pkl': # the file is a set of SWHT image coefficients
         fDict['fmt'] = 'pkl'
     else:
-        #unknown data format, returns warning
+        # unknown data format, returns warning
         fDict['fmt'] = -1
     return fDict
 
@@ -173,7 +173,7 @@ def lofarFreqs(fDict, sbs):
     nchan = lofarConfig.rcuInfo[fDict['rcu']]['nchan']
     bw = lofarConfig.rcuInfo[fDict['rcu']]['bw']
     df = bw/nchan
-    freqs = sbs*df + lofarConfig.rcuInfo[fDict['rcu']]['offset'] + (df/2.) #df/2 to centre the band
+    freqs = sbs*df + lofarConfig.rcuInfo[fDict['rcu']]['offset'] + (df/2.) # df/2 to centre the band
 
     return freqs, nchan, bw
 
@@ -187,26 +187,30 @@ def lofarACCSelectSbs(fn, sbs, nchan, nantpol, intTime, antGains=None):
     antGains: antenna gains from lofarConfig.readCalTable()
 
     returns:
-        sbCorrMatrix: correlation matrix from each subband [Nsubbands, nantpol, nantpol]
-        tDeltas: time offsets for each subband from end of file timestep [Nsubbands]
+        sbCorrMatrix: correlation matrix from each subband [Nsubbands, 1, nantpol, nantpol]
+        tDeltas: 2D array [Nsubbands, 1], time offsets for each subband from end of file timestep [Nsubbands]
     """
-    tDeltas = [] #subband timestamp deltas from the end of file
-    corrMatrix = np.fromfile(fn, dtype='complex').reshape(nchan, nantpol, nantpol) #read in the complete correlation matrix
+    tDeltas = [] # subband timestamp deltas from the end of file
+    corrMatrix = np.fromfile(fn, dtype='complex').reshape(nchan, nantpol, nantpol) # read in the complete correlation matrix
     sbCorrMatrix = np.zeros((sbs.shape[0], nantpol, nantpol), dtype=complex)
     for sbIdx, sb in enumerate(sbs):
         if antGains is None:
-            sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
-        else: #Apply Gains
+            sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] # select out a single subband, shape (nantpol, nantpol)
+        else: # Apply Gains
             sbAntGains = antGains[sb][np.newaxis].T
             sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
-            sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol)
+            sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) # select out a single subband, shape (nantpol, nantpol)
 
-        #correct the time due to subband stepping
-        tOffset = (nchan - sb) * intTime #the time stamp in the filename is for the last subband
-        rem = tOffset - int(tOffset) #subsecond remainder
+        # correct the time due to subband stepping
+        tOffset = (nchan - sb) * intTime # the time stamp in the filename is for the last subband
+        rem = tOffset - int(tOffset) # subsecond remainder
         tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
 
+    tDeltas = np.reshape(np.array(tDeltas), (sbs.shape[0], 1)) # put in the shape [Nsubbands, Nints]
+    sbCorrMatrix = np.reshape(sbCorrMatrix, (sbs.shape[0], 1, nantpol, nantpol)) # add integration axis
+
     print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
+    print 'REDUCED CORRELATION MATRIX SHAPE', sbCorrMatrix.shape
 
     return sbCorrMatrix, tDeltas
 
@@ -218,19 +222,23 @@ def lofarSE607XST(fn, sb, nantpol, antGains=None):
     antGains: antenna gains from lofarConfig.readCalTable()
 
     returns:
-        sbCorrMatrix: correlation matrix from each subband [1, nantpol, nantpol] for consistency with lofarACCSelectSbs()
-        tDeltas: [1] list, time offset from end of file timestep, set to 0 but kept for consistency with lofarACCSelectSbs()
+        sbCorrMatrix: correlation matrix from each subband [1, 1, nantpol, nantpol] for consistency with lofarACCSelectSbs()
+        tDeltas: 2D array [1, 1], time offset from end of file timestep, set to 0 but kept for consistency with lofarACCSelectSbs()
     """
     corrMatrix = np.fromfile(fn, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
     if antGains is None:
-        sbCorrMatrix = corrMatrix #shape (1, nantpol, nantpol)
-    else: #Apply Gains
+        sbCorrMatrix = corrMatrix # shape (1, nantpol, nantpol)
+    else: # Apply Gains
         sbAntGains = antGains[sb][np.newaxis].T
         sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
-        sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (1, nantpol, nantpol)
-    tDeltas = [datetime.timedelta(0, 0)] #no time offset
+        sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) # shape (1, nantpol, nantpol)
+    tDeltas = [datetime.timedelta(0, 0)] # no time offset
+
+    tDeltas = np.array(tDeltas)[np.newaxis] # put in the shape [Nsubbands, Nints]
+    sbCorrMatrix = np.reshape(sbCorrMatrix, (1, 1, nantpol, nantpol)) # add integration axis
 
     print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
+    print 'REDUCED CORRELATION MATRIX SHAPE', sbCorrMatrix.shape
 
     return sbCorrMatrix, tDeltas
 
@@ -246,8 +254,8 @@ def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None, times='0'):
         iii) d[step size]: decimate the integrations to select an integration every 'step size', e.g. d600 will select every 600th integration
 
     returns:
-        sbCorrMatrix: correlation matrix from each subband [1, nantpol, nantpol] for consistency with lofarACCSelectSbs()
-        tDeltas: [1] list, time offset from end of file timestep, set to 0 but kept for consistency with lofarACCSelectSbs()
+        corrMatrix: correlation matrix from each subband and integration [1, nAvgInts, nantpol, nantpol] for consistency with lofarACCSelectSbs()
+        tDeltas: 2D array [1, nAvgInts], time offset from end of file timestep, for consistency with lofarACCSelectSbs()
     """
     corrMatrix = np.fromfile(fn, dtype='complex') # read in the correlation matrix
     nints = corrMatrix.shape[0]/(nantpol * nantpol) # number of integrations
@@ -263,7 +271,6 @@ def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None, times='0'):
         # compute the mean for the axis to produce the averaged array
         reducedCorrMatrix = np.mean(corrMatrix[:int(intLen * nAvgInts)].reshape( nAvgInts, intLen, nantpol, nantpol), axis=1)
         tids = np.linspace(intLen/2., intLen * (nAvgInts-0.5), nAvgInts) # take the centre integration time to be the time ID
-        print tids
     elif times.startswith('d'): #decimation
         decimateFactor = int(times[1:])
         tids = np.arange(nints)[::decimateFactor]
@@ -286,6 +293,9 @@ def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None, times='0'):
         tOffset = (nints - tid - 1) * intTime # the timestamp in the filename is for the last integration
         rem = tOffset - int(tOffset) # subsecond remainder
         tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
+
+    tDeltas = np.array(tDeltas)[np.newaxis] # put in the shape [Nsubbands, Nints]
+    reducedCorrMatrix = np.reshape(reducedCorrMatrix, (1, tids.shape[0], nantpol, nantpol)) # add subband axis
 
     print 'ORIGINAL CORRELATION MATRIX SHAPE', corrMatrix.shape
     print 'REDUCED CORRELATION MATRIX SHAPE', reducedCorrMatrix.shape
@@ -310,50 +320,54 @@ def lofarObserver(lat, lon, elev, ts):
     
     return obs
 
-# TODO: generalize to [Nsubbands, Nints, nantpol, nantpol]
-def lofarGenUVW(sbCorrMatrix, ants, obs, sbs, ts):
+def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
     """Generate UVW coordinates from antenna positions, timestamps/subbands
-    sbCorrMatrix: [Nsubbands, nantpol, nantpol] array, correlation matrix for each subband
+    corrMatrix: [Nsubbands, Nints, nantpol, nantpol] array, correlation matrix for each subband, time integration
     ants: [Nantennas, 3] array, antenna positions in XYZ
     obs: ephem.Observer() of station
     sbs: [Nsubbands] array, subband IDs
-    ts: datetime array, timestamp for each subband
+    ts: datetime 2D array [Nsubbands, Nints], timestamp for each correlation matrix
 
     returns:
-        vis: visibilities [4, Nsamples, Nsubbands]
-        uvw: UVW coordinates [Nsamples, 3, Nsubbands]
+        vis: visibilities [4, Nsamples*Nints, Nsubbands]
+        uvw: UVW coordinates [Nsamples*Nints, 3, Nsubbands]
     """
     nants = ants.shape[0]
     ncorrs = nants*(nants+1)/2
-    uvw = np.zeros((ncorrs, 3, len(sbs)), dtype=float)
-    vis = np.zeros((4, ncorrs, len(sbs)), dtype=complex) # 4 polarizations: xx, xy, yx, yy
+    nints = ts.shape[1]
+    uvw = np.zeros((nints, ncorrs, 3, len(sbs)), dtype=float)
+    vis = np.zeros((4, nints, ncorrs, len(sbs)), dtype=complex) # 4 polarizations: xx, xy, yx, yy
     for sbIdx, sb in enumerate(sbs):
-        obs.epoch = ts[sbIdx]
-        obs.date = ts[sbIdx]
+        for tIdx in np.arange(nints):
+            obs.epoch = ts[sbIdx, tIdx]
+            obs.date = ts[sbIdx, tIdx]
 
-        # in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
-        LSTangle = obs.sidereal_time() # radians
-        print 'LST:',  LSTangle
-        rotAngle = float(LSTangle) - float(obs.long) # adjust LST to that of the Observatory longitutude to make the LST that at Greenwich
-        # to be honest, the next two lines change the LST to make the images come out but i haven't worked out the coordinate transforms, so for now these work without justification
-        rotAngle += np.pi
-        rotAngle *= -1
-        # Rotation matrix for antenna positions
-        rotMatrix = np.array([[np.cos(rotAngle), -1.*np.sin(rotAngle), 0.],
-                              [np.sin(rotAngle), np.cos(rotAngle),     0.],
-                              [0.,               0.,                   1.]]) # rotate about the z-axis
+            # in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
+            LSTangle = obs.sidereal_time() # radians
+            print 'LST:',  LSTangle
+            rotAngle = float(LSTangle) - float(obs.long) # adjust LST to that of the Observatory longitutude to make the LST that at Greenwich
+            # to be honest, the next two lines change the LST to make the images come out but i haven't worked out the coordinate transforms, so for now these work without justification
+            rotAngle += np.pi
+            rotAngle *= -1
+            # Rotation matrix for antenna positions
+            rotMatrix = np.array([[np.cos(rotAngle), -1.*np.sin(rotAngle), 0.],
+                                  [np.sin(rotAngle), np.cos(rotAngle),     0.],
+                                  [0.,               0.,                   1.]]) # rotate about the z-axis
 
-        # get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
-        xyz = np.dot(ants[:,0,:], rotMatrix)
+            # get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
+            xyz = np.dot(ants[:,0,:], rotMatrix)
 
-        repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
-        uvw[:, :, sbIdx] = util.vectorize(repxyz - np.transpose(repxyz, (1, 0, 2)))
+            repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
+            uvw[tIdx, :, :, sbIdx] = util.vectorize(repxyz - np.transpose(repxyz, (1, 0, 2)))
 
-        # split up polarizations, vectorize the correlation matrix, and drop the lower triangle
-        vis[0, :, sbIdx] = util.vectorize(sbCorrMatrix[sbIdx, 0::2, 0::2])
-        vis[1, :, sbIdx] = util.vectorize(sbCorrMatrix[sbIdx, 1::2, 0::2])
-        vis[2, :, sbIdx] = util.vectorize(sbCorrMatrix[sbIdx, 0::2, 1::2])
-        vis[3, :, sbIdx] = util.vectorize(sbCorrMatrix[sbIdx, 1::2, 1::2])
+            # split up polarizations, vectorize the correlation matrix, and drop the lower triangle
+            vis[0, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 0::2, 0::2])
+            vis[1, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 0::2])
+            vis[2, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 0::2, 1::2])
+            vis[3, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 1::2])
+
+    vis = np.reshape(vis, (vis.shape[0], vis.shape[1]*vis.shape[2], vis.shape[3])) 
+    uvw = np.reshape(uvw, (uvw.shape[0]*uvw.shape[1], uvw.shape[2], uvw.shape[3])) 
 
     return vis, uvw, LSTangle
 
@@ -397,8 +411,9 @@ def readACC(fn, fDict, lofarStation, sbs, calTable=None):
     # get correlation matrix for subbands selected
     nantpol = nants * npols
     print 'Reading in visibility data file ...',
-    sbCorrMatrix, tDeltas = lofarACCSelectSbs(fn, sbs, nchan, nantpol, fDict['int'], antGains)
+    corrMatrix, tDeltas = lofarACCSelectSbs(fn, sbs, nchan, nantpol, fDict['int'], antGains)
     print 'done'
+    print corrMatrix.shape, tDeltas.shape
     
     # create station observer
     obs = lofarObserver(lat, lon, elev, fDict['ts'])
@@ -407,7 +422,7 @@ def readACC(fn, fDict, lofarStation, sbs, calTable=None):
     print 'Observatory:', obs
 
     # get the UVW and visibilities for the different subbands
-    vis, uvw, LSTangle = lofarGenUVW(sbCorrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
+    vis, uvw, LSTangle = lofarGenUVW(corrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
 
     return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
 
@@ -451,7 +466,7 @@ def readSE607XST(fn, fDict, lofarStation, sbs, calTable=None):
     # get correlation matrix for subbands selected
     nantpol = nants * npols
     print 'Reading in visibility data file ...',
-    sbCorrMatrix, tDeltas = lofarSE607XST(fn, fDict['sb'], nantpol, antGains)
+    corrMatrix, tDeltas = lofarSE607XST(fn, fDict['sb'], nantpol, antGains)
     print 'done'
     
     # create station observer
@@ -461,7 +476,7 @@ def readSE607XST(fn, fDict, lofarStation, sbs, calTable=None):
     print 'Observatory:', obs
 
     # get the UVW and visibilities for the different subbands
-    vis, uvw, LSTangle = lofarGenUVW(sbCorrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
+    vis, uvw, LSTangle = lofarGenUVW(corrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
 
     return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
 
@@ -509,7 +524,7 @@ def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None, times='0'):
     # get correlation matrix for subbands selected
     nantpol = nants * npols
     print 'Reading in visibility data file ...',
-    sbCorrMatrix, tDeltas = lofarKAIRAXST(fn, fDict['sb'], nantpol, fDict['int'], antGains, times=times)
+    corrMatrix, tDeltas = lofarKAIRAXST(fn, fDict['sb'], nantpol, fDict['int'], antGains, times=times)
     print 'done'
 
     # create station observer
@@ -519,9 +534,7 @@ def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None, times='0'):
     print 'Observatory:', obs
 
     # get the UVW and visibilities for the different subbands
-    vis, uvw, LSTangle = lofarGenUVW(sbCorrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
-
-    exit()
+    vis, uvw, LSTangle = lofarGenUVW(corrMatrix, ants, obs, sbs, fDict['ts']-np.array(tDeltas))
 
     return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
 
