@@ -19,8 +19,6 @@ import healpy as hp
 #cc = scipy.constants.c
 cc = 299792458.0 #speed of light, m/s
 
-#TODO: the rotation is off, need to sort this out
-
 if __name__ == '__main__':
     from optparse import OptionParser
     o = OptionParser()
@@ -70,6 +68,8 @@ if __name__ == '__main__':
         help='Display a 3D UVW coverage/sampling plot')
     o.add_option('-t', '--times', dest='times', default='0',
         help = 'KAIRA ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
+    o.add_option('--pol', dest='polMode', default='I',
+        help='Polarization selection: I, Q, U, V, XX, YY, XY, YX, default: I')
     opts, args = o.parse_args(sys.argv[1:])
 
     # parse subbands
@@ -154,7 +154,7 @@ if __name__ == '__main__':
         elif fDict['fmt']=='pkl':
             print 'Loading Image Coefficients file:', visFn
             coeffDict = SWHT.fileio.readCoeffPkl(visFn)
-            iImgCoeffs = coeffDict['coeffs']
+            imgCoeffs = coeffDict['coeffs']
             LSTangle = coeffDict['lst']
             obsLong = coeffDict['phs'][0]
             obsLat = coeffDict['phs'][1]
@@ -189,15 +189,23 @@ if __name__ == '__main__':
         # prepare for SWHT
         print 'Performing Spherical Wave Harmonic Transform'
         print 'LMAX:', opts.lmax
-        #TODO: only doing Stokes I/Total Intensity right now
-        #iImgCoeffs = SWHT.swht.swhtImageCoeffs(xxVisComb+yyVisComb, uvwComb, freqs, lmax=opts.lmax, lmin=opts.lmin)
-        iVisComb = visComb[0] + visComb[3]
-        iImgCoeffs = SWHT.swht.swhtImageCoeffs(iVisComb, uvwComb, freqs, lmax=opts.lmax, lmin=opts.lmin)
+
+        polMode = opts.polMode.upper()
+        print 'Polarization Mode:', polMode
+        if polMode=='I': polVisComb = visComb[0] + visComb[3]
+        elif polMode=='Q': polVisComb = visComb[0] - visComb[3]
+        elif polMode=='U': polVisComb = visComb[1] + visComb[2]
+        elif polMode=='V': polVisComb = 1j * np.conj(visComb[1] - visComb[2]) #flip imaginary and real
+        elif polMode=='XX': polVisComb = visComb[0]
+        elif polMode=='XY': polVisComb = visComb[1]
+        elif polMode=='YX': polVisComb = visComb[2]
+        elif polMode=='YY': polVisComb = visComb[3]
+        imgCoeffs = SWHT.swht.swhtImageCoeffs(polVisComb, uvwComb, freqs, lmax=opts.lmax, lmin=opts.lmin)
 
         # save image coefficients to file
         if opts.ocoeffs is None: outCoeffPklFn = 'tempCoeffs.pkl'
         else: outCoeffPklFn = opts.pkl
-        SWHT.fileio.writeCoeffPkl(outCoeffPklFn, iImgCoeffs, [float(obsLong), float(obsLat)], float(LSTangle))
+        SWHT.fileio.writeCoeffPkl(outCoeffPklFn, imgCoeffs, [float(obsLong), float(obsLat)], float(LSTangle))
 
     ####################
     ## Imaging
@@ -214,8 +222,8 @@ if __name__ == '__main__':
         res = fov/px[0] # pixel resolution
         print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
         print 'Resolution(deg):', res*180./np.pi
-        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., 0.]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
-        #img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        img = SWHT.swht.make2Dimage(imgCoeffs, res, px, phs=[0., 0.]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        #img = SWHT.swht.make2Dimage(imgCoeffs, res, px, phs=[0., float(obsLat)]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
         fig, ax = SWHT.display.disp2D(img, dmode='abs', cmap='jet')
 
         # save complex image to pickle file
@@ -225,7 +233,7 @@ if __name__ == '__main__':
 
     elif opts.imageMode.startswith('3'): # Make a 3D equal stepped image
         print 'Generating 3D Image with %i steps in theta and %i steps in phi'%(opts.pixels, opts.pixels)
-        img, phi, theta = SWHT.swht.make3Dimage(iImgCoeffs, dim=[opts.pixels, opts.pixels])
+        img, phi, theta = SWHT.swht.make3Dimage(imgCoeffs, dim=[opts.pixels, opts.pixels])
         fig, ax = SWHT.display.disp3D(img, phi, theta, dmode='abs', cmap='jet')
 
         # save complex image to pickle file
@@ -236,17 +244,16 @@ if __name__ == '__main__':
     elif opts.imageMode.startswith('heal'): # plot healpix and save healpix file using the opts.pkl name
         print 'Generating HEALPix Image with %i NSIDE'%(opts.pixels)
         # use the healpy.alm2map function as it is much faster, there is a ~1% difference between the 2 functions, this is probably due to the inner workings of healpy
-        #m = SWHT.swht.makeHEALPix(iImgCoeffs, nside=opts.pixels)
-        m = hp.alm2map(SWHT.util.array2almVec(iImgCoeffs), opts.pixels)
+        #m = SWHT.swht.makeHEALPix(imgCoeffs, nside=opts.pixels) # TODO: a rotation issue
+        m = hp.alm2map(SWHT.util.array2almVec(imgCoeffs), opts.pixels) # TODO: a rotation issue
 
         # save complex image to HEALPix file
         print 'Writing image to file %s ...'%outFn,
-        #hp.write_map(outFn, np.abs(m), coord='C') #TODO: should this be abs or real?
-        hp.write_map(outFn, m.real, coord='C') #TODO: should this be abs or real?
+        hp.write_map(outFn, m.real, coord='C') # only writing the real component, this should be fine, maybe missing some details, but you know, the sky should be real.
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): # plot the complex coefficients
-        fig, ax = SWHT.display.dispCoeffs(iImgCoeffs, zeroDC=True, vis=False)
+        fig, ax = SWHT.display.dispCoeffs(imgCoeffs, zeroDC=True, vis=False)
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay:

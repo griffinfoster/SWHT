@@ -386,6 +386,7 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
 
             # Rotation matricies for XYZ -> UVW transform
             #dec = float(obs.lat)
+            # TODO: if doing a 2D FFT, rotate such that the phase centre is at the array latitude, this can be done in another function where the baselines are projected
             dec = float(np.pi/2.) # set the north pole to be dec 90, thus the dec rotation matrix below is not really needed
             decRotMat = np.array([  [1., 0., 0.],
                                     [0., np.sin(dec),     np.cos(dec)],
