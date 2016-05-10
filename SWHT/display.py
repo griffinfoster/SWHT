@@ -3,31 +3,60 @@ Functions to display images and coefficients
 """
 
 import matplotlib.pyplot as plt
+import matplotlib.patches
 import numpy as np
 import swht, util
 
-def disp2D(img, dmode='abs', cmap='jet'):
+def disp2D(img, dmode='dB', cmap='jet'):
     """Display 2D projected image
     img: 2D array of complex flux values
-    dmode: string, data mode (abs, real, imaginary, phase)
+    dmode: string, data mode (abs, dB (absolute value in log units), real, imaginary, phase)
     cmap: string, matplotlib colormap name
     """
     if dmode.startswith('abs'): img = np.abs(img)
+    elif dmode.startswith('dB'): img = 10. * np.log10(np.abs(img))
     elif dmode.startswith('real'): img = img.real
     elif dmode.startswith('imag'): img = img.imag
     elif dmode.startswith('phase'): img = np.angle(img)
     else:
         print 'WARNING: Unknown data mode, defaulting to absolute value'
         img = np.abs(img)
-    
+
     img = np.fliplr(img)
 
     fig, ax = plt.subplots(1, 1)
+    ax.yaxis.set_ticks([]) # hide tick marks and labels
+    ax.xaxis.set_ticks([]) # hide tick marks and labels
+    ax.patch.set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     plt.imshow(img, interpolation='nearest', cmap=plt.get_cmap(cmap))
+
+    # draw alt-az grid (assume square image)
+    xc = img.shape[0]/2. - 0.5
+    yc = img.shape[1]/2. - 0.5
+    ax.add_patch( matplotlib.patches.Circle((xc, yc), img.shape[0]/2., fill=False)) # alt 0
+    altLines = 5 # number of lines at constant altitude, including alt=0 and alt=90
+    deltaAlt = img.shape[0] / (2.*altLines)
+    for al in range(1, altLines): # skip alt=0 and alt=90
+        ax.add_patch( matplotlib.patches.Circle((xc, yc), xc-deltaAlt*al, fill=False, linestyle='dotted', alpha=0.7))
+    azLines = 6 # number of constant azimuth lines
+    deltaAz = np.pi / azLines
+    for az in range(azLines):
+        plt.plot(np.array([np.cos(az*deltaAz), np.cos(az*deltaAz + np.pi)])/2. + 0.5, np.array([np.sin(az*deltaAz), np.sin(az*deltaAz + np.pi)])/2. + 0.5, 'k:', alpha=0.7, transform=ax.transAxes)
+
+    # grid labels
+    for az in range(2*azLines):
+        #plt.text(img.shape[0] * (1.06 * np.cos(az*deltaAz)/2. + 0.5), img.shape[0] * (1.06 * np.sin(az*deltaAz)/2. + 0.5), '%.0f'%(az*deltaAz*180./np.pi), horizontalalignment='center')
+        plt.text(img.shape[0] * (1.06 * np.sin(az*deltaAz - np.pi)/2. + 0.5), img.shape[0] * (1.06 * np.cos(az*deltaAz - np.pi)/2. + 0.5), '%.0f'%(az*deltaAz*180./np.pi), horizontalalignment='center')
+
     plt.colorbar()
 
     return fig, ax
 
+# TODO: Add RA/Dec grid
 def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
     """Display 3D, equal in phi and theta (Driscoll and Healy mapping) image
     img: 2D array of complex flux values
@@ -50,6 +79,9 @@ def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
     #Z = np.sin(theta-(np.pi/2.))
     X, Y, Z = util.sph2cart(theta, phi)
 
+    # North-South Flip
+    #Z *= -1.
+
     #http://stackoverflow.com/questions/22175533/what-is-the-equivalent-of-matlabs-surfx-y-z-c-in-matplotlib
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
@@ -64,6 +96,7 @@ def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
     scalarMap.set_array(img)
     C = scalarMap.to_rgba(img)
     surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
+    #wire = ax.plot_wireframe(1.05*X, 1.05*Y, 1.05*Z, rstride=10, cstride=10, color='black') # RA/Dec grid
     fig.colorbar(scalarMap)
     return fig, ax
 

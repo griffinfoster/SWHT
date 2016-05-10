@@ -224,6 +224,10 @@ def iswhtVisibilities(blm, uvw, freqs):
     return vis
 
 #TODO: there is an issue about phase location, check this out
+# TODO: phase centre options:
+#           (RA, dec) : ( any, 90 deg)
+#           (RA, dec) : ( any,-90 deg)
+#           (RA, dec) : ( LST of first file, station latitude)
 def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     """Make a flat image of a single hemisphere from SWHT image coefficients
     coeffs: SWHT brightness coefficients
@@ -243,11 +247,13 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
     #convert to polar positions
     r = np.sqrt(xx**2. + yy**2.)
     phi = np.arctan2(yy, xx)
-    #zero out undefined regions of the image where r>0
-    #numpy is super cunty and makes it fucking hard to do simple things, so the next few lines are bullshit that should only take 2 lines
-    idx = np.argwhere(r.flatten()>1)
+
+    # zero out undefined regions of the image where r>0
+    # overly tedious steps for something that should be much easier to do
     rflat = r.flatten()
     phiflat = phi.flatten()
+    maxRcond = r.flatten() > 1
+    idx = np.argwhere(maxRcond)
     rflat[idx] = 0.
     phiflat[idx] = 0.
     r = np.reshape(rflat, r.shape)
@@ -286,8 +292,7 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
 
     print 'Run time: %f s'%(time.time() - start_time)
 
-    #return theta0
-    return img
+    return np.ma.array(img, mask=maxRcond)
 
 #TODO: make3Dimage: masking
 def make3Dimage(coeffs, dim=[64, 64]):
@@ -311,6 +316,7 @@ def make3Dimage(coeffs, dim=[64, 64]):
     return img, phi, theta #flip theta and phi values
 
 #TODO: makeHEALPix: masking
+# TODO: there is a rotation issue, something like phi and theta need to be flipped but that doesn't seem to fix it
 def makeHEALPix(coeffs, nside=64):
     """Make a HEALPix map from SWHT image coefficients, comparable to healpy.alm2map()
     coeffs: SWHT brightness coefficients

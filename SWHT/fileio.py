@@ -2,7 +2,18 @@
 functions to read/write data for the imagers
 """
 
-#TODO: hdf5 wrappers for visibilities and images
+"""
+TODO: hdf5 wrappers for visibilities and images
+    visibilities:
+        LOFAR (XST or ACC) visibilities
+        UVW corrdinates
+        Flags
+        Station Information
+    images:
+        SWHT coefficients
+        Imaging history
+        Observation history
+"""
 
 import cPickle as pkl
 import numpy as np
@@ -254,8 +265,8 @@ def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None, times='0'):
         iii) d[step size]: decimate the integrations to select an integration every 'step size', e.g. d600 will select every 600th integration
 
     returns:
-        corrMatrix: correlation matrix from each subband and integration [1, nAvgInts, nantpol, nantpol] for consistency with lofarACCSelectSbs()
-        tDeltas: 2D array [1, nAvgInts], time offset from end of file timestep, for consistency with lofarACCSelectSbs()
+        reducedCorrMatrix: correlation matrix from each subband and integration [1, tids.size, nantpol, nantpol] for consistency with lofarACCSelectSbs()
+        tDeltas: 2D array [1, tids.size], time offset from end of file timestep, for consistency with lofarACCSelectSbs()
     """
     corrMatrix = np.fromfile(fn, dtype='complex') # read in the correlation matrix
     nints = corrMatrix.shape[0]/(nantpol * nantpol) # number of integrations
@@ -282,12 +293,14 @@ def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None, times='0'):
         reducedCorrMatrix = corrMatrix[tids]
 
     tDeltas = [] # integration timestamp deltas from the end of file
+    if antGains is not None: # Apply Gains
+        sbAntGains = antGains[sb][np.newaxis].T
+        sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+        reducedCorrMatrix = sbVisGains * reducedCorrMatrix # Apply gains
     for tIdx, tid in enumerate(tids):
-        if antGains is not None: # Apply Gains
-            # TODO: these two lines are in the loop but does not need to be, only need to be called once, infact I think all 3 lines do not need a loop
-            sbAntGains = antGains[sb][np.newaxis].T
-            sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
-            reducedCorrMatrix[tIdx] = np.multiply(sbVisGains, reducedCorrMatrix[tid, :, :]) #select out a single integration, shape (nantpol, nantpol)
+        #if antGains is not None: # Apply Gains
+        #    # TODO: this multiplication can be done outside the for loop
+        #    reducedCorrMatrix[tIdx] = np.multiply(sbVisGains, reducedCorrMatrix[tid, :, :]) # select out a single integration, shape (nantpol, nantpol)
 
         # correct the time relative to the EOF timestamp
         tOffset = (nints - tid - 1) * intTime # the timestamp in the filename is for the last integration
@@ -342,29 +355,57 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
             obs.epoch = ts[sbIdx, tIdx]
             obs.date = ts[sbIdx, tIdx]
 
-            # in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
+            ## in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
+            #LSTangle = obs.sidereal_time() # radians
+            #print 'LST:',  LSTangle, 'Dec:', obs.lat
+            #rotAngle = float(LSTangle) - float(obs.long) # adjust LST to that of the Observatory longitutude to make the LST that at Greenwich
+            #print float(LSTangle) * 180./np.pi, float(obs.long) * 180./np.pi, rotAngle * 180./np.pi
+            ## TODO: to be honest, the next two lines change the LST to make the images come out but i haven't worked out the coordinate transforms, so for now these work without justification
+            #rotAngle += np.pi
+            #rotAngle *= -1
+            ## Rotation matrix for antenna positions
+            #rotMatrix = np.array([[np.cos(rotAngle), -1.*np.sin(rotAngle), 0.],
+            #                      [np.sin(rotAngle), np.cos(rotAngle),     0.],
+            #                      [0.,               0.,                   1.]]) # rotate about the z-axis
+            #rotMatrix = np.array([[1., 0., 0.],
+            #                      [0., 1., 0.],
+            #                      [0., 0., 1.]]) # rotate about the z-axis
+
+            ## get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
+            #xyz = np.dot(ants[:,0,:], rotMatrix)
+
+            #repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
+            #uvw[tIdx, :, :, sbIdx] = util.vectorize(repxyz - np.transpose(repxyz, (1, 0, 2)))
+
             LSTangle = obs.sidereal_time() # radians
-            print 'LST:',  LSTangle
-            rotAngle = float(LSTangle) - float(obs.long) # adjust LST to that of the Observatory longitutude to make the LST that at Greenwich
-            # to be honest, the next two lines change the LST to make the images come out but i haven't worked out the coordinate transforms, so for now these work without justification
-            rotAngle += np.pi
-            rotAngle *= -1
-            # Rotation matrix for antenna positions
-            rotMatrix = np.array([[np.cos(rotAngle), -1.*np.sin(rotAngle), 0.],
-                                  [np.sin(rotAngle), np.cos(rotAngle),     0.],
-                                  [0.,               0.,                   1.]]) # rotate about the z-axis
+            print 'LST:',  LSTangle, 'Dec:', obs.lat
 
-            # get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
-            xyz = np.dot(ants[:,0,:], rotMatrix)
+            # Compute baselines in XYZ
+            antPosRep = np.repeat(ants[:,0,:], nants, axis=0).reshape((nants, nants, 3)) # ants is of the form [nants, npol, 3], assume pols are at the same position
+            xyz = util.vectorize(antPosRep - np.transpose(antPosRep, (1, 0, 2)))
 
-            repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
-            uvw[tIdx, :, :, sbIdx] = util.vectorize(repxyz - np.transpose(repxyz, (1, 0, 2)))
+            # Rotation matricies for XYZ -> UVW transform
+            #dec = float(obs.lat)
+            dec = float(np.pi/2.) # set the north pole to be dec 90, thus the dec rotation matrix below is not really needed
+            decRotMat = np.array([  [1., 0., 0.],
+                                    [0., np.sin(dec),     np.cos(dec)],
+                                    [0., -1.*np.cos(dec), np.sin(dec)]])
+            #ha = float(LSTangle) - float(obs.long) # Hour Angle
+            ha = float(LSTangle) - 0. # Hour Angle in reference to longitude/RA=0
+            haRotMat = np.array([   [np.sin(ha)    , np.cos(ha), 0.],
+                                    [-1.*np.cos(ha), np.sin(ha), 0.],
+                                    [0.,             0.,         1.]])
+            rotMatrix = np.dot(decRotMat, haRotMat)
+
+            uvw[tIdx, :, :, sbIdx] = np.dot(rotMatrix, xyz.T).T
 
             # split up polarizations, vectorize the correlation matrix, and drop the lower triangle
             vis[0, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 0::2, 0::2])
             vis[1, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 0::2])
             vis[2, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 0::2, 1::2])
             vis[3, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 1::2])
+
+    #exit()
 
     vis = np.reshape(vis, (vis.shape[0], vis.shape[1]*vis.shape[2], vis.shape[3])) 
     uvw = np.reshape(uvw, (uvw.shape[0]*uvw.shape[1], uvw.shape[2], uvw.shape[3])) 
@@ -599,16 +640,21 @@ def readMS(fn, sbs, column='DATA'):
 if __name__ == '__main__':
     print 'Running test cases...'
 
+    # LOFAR ACC
     fDict = parse('../examples/20150607_122433_acc_512x192x192.dat')
     print fDict
 
+    # Measurement Set
     fDict = parse('../examples/zen.2455819.26623.uvcRREM.MS')
     print fDict
 
+    # SE607 HBA XST
     fDict = parse('../examples/20150915_191137_rcu5_sb60_int10_dur10_elf0f39fe2034ea85fc02b3cc1544863053b328fd83291e880cd0bf3c3d3a50a164a3f3e0c070c73d073f4e43849c0e93b_xst.dat')
     print fDict
 
-    #TODO: KAIRA test
+    # KAIRA XST
+    fDict = parse('20160228_040005_xst.dat', fmt='KAIRA')
+    print fDict
 
     print '...Made it through without errors'
 

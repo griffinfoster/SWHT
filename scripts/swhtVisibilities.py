@@ -214,7 +214,8 @@ if __name__ == '__main__':
         res = fov/px[0] # pixel resolution
         print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
         print 'Resolution(deg):', res*180./np.pi
-        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., 0.]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        #img = SWHT.swht.make2Dimage(iImgCoeffs, res, px, phs=[0., float(obsLat)]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
         fig, ax = SWHT.display.disp2D(img, dmode='abs', cmap='jet')
 
         # save complex image to pickle file
@@ -240,7 +241,8 @@ if __name__ == '__main__':
 
         # save complex image to HEALPix file
         print 'Writing image to file %s ...'%outFn,
-        hp.write_map(outFn, np.abs(m), coord='C') #TODO: should this be abs or real?
+        #hp.write_map(outFn, np.abs(m), coord='C') #TODO: should this be abs or real?
+        hp.write_map(outFn, m.real, coord='C') #TODO: should this be abs or real?
         print 'done'
     
     elif opts.imageMode.startswith('coeff'): # plot the complex coefficients
