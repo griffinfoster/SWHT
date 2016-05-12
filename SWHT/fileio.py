@@ -385,17 +385,14 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
             xyz = util.vectorize(antPosRep - np.transpose(antPosRep, (1, 0, 2)))
 
             # Rotation matricies for XYZ -> UVW transform
-            #dec = float(obs.lat)
-            # TODO: if doing a 2D FFT, rotate such that the phase centre is at the array latitude, this can be done in another function where the baselines are projected
             dec = float(np.pi/2.) # set the north pole to be dec 90, thus the dec rotation matrix below is not really needed
-            decRotMat = np.array([  [1., 0., 0.],
-                                    [0., np.sin(dec),     np.cos(dec)],
-                                    [0., -1.*np.cos(dec), np.sin(dec)]])
-            #ha = float(LSTangle) - float(obs.long) # Hour Angle
+            decRotMat = np.array([  [1.,              0.,          0.],
+                                    [0.,     np.sin(dec), np.cos(dec)],
+                                    [0., -1.*np.cos(dec), np.sin(dec)]]) #rotate about x-axis
             ha = float(LSTangle) - 0. # Hour Angle in reference to longitude/RA=0
-            haRotMat = np.array([   [np.sin(ha)    , np.cos(ha), 0.],
+            haRotMat = np.array([   [    np.sin(ha), np.cos(ha), 0.],
                                     [-1.*np.cos(ha), np.sin(ha), 0.],
-                                    [0.,             0.,         1.]])
+                                    [0.,             0.,         1.]]) #rotate about z-axis
             rotMatrix = np.dot(decRotMat, haRotMat)
 
             uvw[tIdx, :, :, sbIdx] = np.dot(rotMatrix, xyz.T).T
@@ -405,8 +402,6 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
             vis[1, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 0::2])
             vis[2, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 0::2, 1::2])
             vis[3, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 1::2])
-
-    #exit()
 
     vis = np.reshape(vis, (vis.shape[0], vis.shape[1]*vis.shape[2], vis.shape[3])) 
     uvw = np.reshape(uvw, (uvw.shape[0]*uvw.shape[1], uvw.shape[2], uvw.shape[3])) 
@@ -455,7 +450,7 @@ def readACC(fn, fDict, lofarStation, sbs, calTable=None):
     print 'Reading in visibility data file ...',
     corrMatrix, tDeltas = lofarACCSelectSbs(fn, sbs, nchan, nantpol, fDict['int'], antGains)
     print 'done'
-    print corrMatrix.shape, tDeltas.shape
+    #print corrMatrix.shape, tDeltas.shape
     
     # create station observer
     obs = lofarObserver(lat, lon, elev, fDict['ts'])
@@ -623,6 +618,7 @@ def readMS(fn, sbs, column='DATA'):
     print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
     SW.close()
 
+    # TODO: check rotation reference is the same as with LOFAR data, north pole is dec=+90, ra=0
     # in order to accommodate multiple observations at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
     print 'LST:',  LSTangle
     rotAngle = float(LSTangle) - obsLong # adjust LST to that of the Observatory longitutude to make the LST that at Greenwich

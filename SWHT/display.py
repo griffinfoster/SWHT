@@ -56,6 +56,52 @@ def disp2D(img, dmode='dB', cmap='jet'):
 
     return fig, ax
 
+def disp2DStokes(xx, xy, yx, yy, cmap='jet'):
+    """Display 2D projected Stokes images
+    xx, xy, yx, yy: 2D array of complex flux values
+    cmap: string, matplotlib colormap name
+    """
+    iIm = (xx + yy).real
+    qIm = (xx - yy).real
+    uIm = (xy + yx).real
+    vIm = (yx - xy).imag
+
+    fig, ax = plt.subplots(2, 2)
+
+    # Top Left
+    plt.axes(ax[0,0])
+    plt.imshow(iIm)
+    plt.xlabel('Pixels (E-W)')
+    plt.ylabel('Pixels (N-S)')
+    plt.colorbar()
+    plt.title('I')
+
+    # Top Right
+    plt.axes(ax[0,1])
+    plt.imshow(qIm)
+    plt.xlabel('Pixels (E-W)')
+    plt.ylabel('Pixels (N-S)')
+    plt.colorbar()
+    plt.title('Q')
+
+    # Bottom Left
+    plt.axes(ax[1,0])
+    plt.imshow(uIm)
+    plt.xlabel('Pixels (E-W)')
+    plt.ylabel('Pixels (N-S)')
+    plt.colorbar()
+    plt.title('U')
+
+    # Bottom Right
+    plt.axes(ax[1,1])
+    plt.imshow(vIm)
+    plt.xlabel('Pixels (E-W)')
+    plt.ylabel('Pixels (N-S)')
+    plt.colorbar()
+    plt.title('V')
+
+    return fig, ax
+
 # TODO: Add RA/Dec grid
 def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
     """Display 3D, equal in phi and theta (Driscoll and Healy mapping) image
@@ -184,10 +230,15 @@ def dispVis2D(uvw):
 
     returns: matplotlib figure and subplots
     """
-    fig, ax = plt.subplots(1, 1)
-    ax.scatter(uvw[:,0], uvw[:,1], edgecolors='none', alpha=0.5)
-    ax.set_xlabel('U (m)')
-    ax.set_ylabel('V (m)')
+    fig, ax = plt.subplots(2, 1, figsize=(6,8))
+    #ax[0].scatter(uvw[:,0], uvw[:,1], edgecolors='none', alpha=0.5)
+    ax[0].plot(uvw[:,0], uvw[:,1], '.', alpha=0.5)
+    ax[0].set_xlabel('U (m)')
+    ax[0].set_ylabel('V (m)')
+
+    ax[1].plot(np.sqrt(uvw[:,0]**2. + uvw[:,1]**2.), uvw[:,2], '.', alpha=0.5)
+    ax[1].set_xlabel('UVdist (m)')
+    ax[1].set_ylabel('W (m)')
 
     return fig, ax
 

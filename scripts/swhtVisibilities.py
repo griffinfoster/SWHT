@@ -215,6 +215,8 @@ if __name__ == '__main__':
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
 
+    print obsLat, obsLong, LSTangle
+
     #TODO: not doing the correct projection
     if opts.imageMode.startswith('2'): # Make a 2D hemispheric image
         fov = opts.fov * (np.pi/180.) # Field of View in radians
@@ -222,7 +224,8 @@ if __name__ == '__main__':
         res = fov/px[0] # pixel resolution
         print 'Generating 2D Hemisphere Image of size (%i, %i)'%(px[0], px[1])
         print 'Resolution(deg):', res*180./np.pi
-        img = SWHT.swht.make2Dimage(imgCoeffs, res, px, phs=[0., 0.]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        #img = SWHT.swht.make2Dimage(imgCoeffs, res, px, phs=[0., 0.]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
+        img = SWHT.swht.make2Dimage(imgCoeffs, res, px, phs=[float(LSTangle), obsLat]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
         #img = SWHT.swht.make2Dimage(imgCoeffs, res, px, phs=[0., float(obsLat)]) #TODO: 0 because the positions have already been rotated to the zenith RA of the first snapshot, if multiple snaphsots this needs to be reconsidered
         fig, ax = SWHT.display.disp2D(img, dmode='abs', cmap='jet')
 

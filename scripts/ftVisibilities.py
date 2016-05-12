@@ -61,182 +61,101 @@ if __name__ == '__main__':
         help = 'Weighting mode, natural (default), uniform')
     o.add_option('--fov', dest='fov', default=180., type='float',
         help = 'Field of View in degrees, default: 180 (all-sky)')
+    o.add_option('-t', '--times', dest='times', default='0',
+        help = 'KAIRA ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
+    o.add_option('--uvplot', dest='uvplot', action='store_true',
+        help='Display a 2D UV coverage/sampling plot of the projected baselines')
     opts, args = o.parse_args(sys.argv[1:])
 
-    visFile = args[0]
-    fDict = SWHT.fileio.parse(visFile)
-    print fDict
-
-    #parse subbands
+    # parse subbands
     sbs = np.array(SWHT.util.convert_arg_range(opts.subband))
 
-    #TODO: function to read ACC file
-    #TODO: function to read XST (HBA format)
-    #TODO: function to read XST (KAIRA format)
-    #TODO: function to read measurement set
-    #TODO: all return visibilities with UVW coordinates
-    
-    #Pull out the visibility data in a (u,v,w) format
-    if fDict['fmt']=='acc' or fDict['fmt']=='xst': #LOFAR visibilities
-        if fDict['fmt']=='acc' or opts.override:
-            fDict['rcu'] = opts.rcumode #add the RCU mode to the meta data of an ACC file, or override the XST metadat
-            fDict['sb'] = sbs
-            fDict['int'] = opts.int_time
-        else:
-            sbs = fDict['sb']
+    # setup variables for combined visibilities and uvw samples
+    visComb = np.array([]).reshape(4, 0, len(sbs))
+    uvwComb = np.array([]).reshape(0, 3, len(sbs))
 
-        lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas) #get station position information
+    dataFmt = None
+    if (not (opts.station is None)) or (not (opts.ant_field is None)): # If using LOFAR data, get station information
+        lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas)
+        antGains = None # Setup variable so that the gain table isn't re-read for every file if used
+        if lofarStation.name=='KAIRA': dataFmt='KAIRA'
 
-        #longitude and latitude of array
-        #lon, lat, elev = lofarStation.antArrays.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
-        arr_xyz = lofarStation.antField.location[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
-        lat, lon, elev = SWHT.ecef.ecef2geodetic(arr_xyz[0], arr_xyz[1], arr_xyz[2], degrees=True)
-        print 'LON(deg):', lon, 'LAT(deg):', lat, 'ELEV(m):', elev
+    ####################
+    ## Read Visibilities
+    ####################
+    visFiles = args # filenames to image
+    for vid,visFn in enumerate(visFiles):
+        print 'Using %s (%i/%i)'%(visFn, vid+1, len(visFiles))
+        fDict = SWHT.fileio.parse(visFn, fmt=dataFmt)
 
-        #antenna positions
-        ants = lofarStation.antField.antpos[SWHT.lofarConfig.rcuInfo[fDict['rcu']]['array_type']]
-        if 'elem' in fDict: #update the antenna positions if there is an element string
-            if lofarStation.deltas is None:
-                print 'Warning: HBA element string found, but HBADeltas file is missing, your image is probably not going to make sense'
+        # Pull out the visibility data in a (u,v,w) format
+        if fDict['fmt']=='acc': # LOFAR station all subbands ACC file visibilities
+            decomp = True
+            fDict['rcu'] = opts.rcumode # add the RCU mode to the meta data of an ACC file
+            fDict['sb'] = sbs # select subbands to use
+            fDict['int'] = opts.int_time # set integration length (usually 1 second)
+
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readACC(visFn, fDict, lofarStation, sbs, calTable=opts.calfile)
+            [obsLat, obsLong, LSTangle] = obsInfo
+
+            # add visibilities to previously processed files
+            visComb = np.concatenate((visComb, vis), axis=1)
+            uvwComb = np.concatenate((uvwComb, uvw), axis=0)
+
+        elif fDict['fmt']=='xst': # SE607 LOFAR XST format visibilities
+            decomp = True
+            if opts.override: # Override XST filename metadata
+                fDict['rcu'] = opts.rcumode
+                fDict['sb'] = sbs
+                fDict['int'] = opts.int_time
             else:
-                print 'Updating antenna positions with HBA element deltas'
-                for aid in np.arange(ants.shape[0]):
-                    delta = lofarStation.deltas[int(fDict['elem'][aid], 16)]
-                    delta = np.array([delta, delta])
-                    ants[aid] += delta
-        nants = ants.shape[0]
-        print 'NANTENNAS:', nants
+                sbs = fDict['sb']
 
-        #frequency information
-        nchan = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['nchan']
-        bw = SWHT.lofarConfig.rcuInfo[fDict['rcu']]['bw']
-        df = bw/nchan
-        freqs = sbs*df + SWHT.lofarConfig.rcuInfo[fDict['rcu']]['offset'] + (df/2.) #df/2 to centre the band
-        print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
-        npols = 2
-        
-        #read LOFAR Calibration Table
-        if not (opts.calfile is None):
-            print 'Using CalTable:', opts.calfile
-            antGains = SWHT.lofarConfig.readCalTable(opts.calfile, nants, nchan, npols)
-        else: antGains = None
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readSE607XST(visFn, fDict, lofarStation, sbs)
+            [obsLat, obsLong, LSTangle] = obsInfo
 
-        #get correlation matrix for subbands selected
-        nantpol = nants * npols
-        print 'Reading in visibility data file ...',
-        if fDict['fmt']=='acc':
-            tDeltas = [] #subband timestamp deltas from the end of file
-            corrMatrix = np.fromfile(visFile, dtype='complex').reshape(nchan, nantpol, nantpol) #read in the complete correlation matrix
-            sbCorrMatrix = np.zeros((sbs.shape[0], nantpol, nantpol), dtype=complex)
-            for sbIdx, sb in enumerate(sbs):
-                if antGains is None:
-                    sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] #select out a single subband, shape (nantpol, nantpol)
-                else: #Apply Gains
-                    sbAntGains = antGains[sb][np.newaxis].T
-                    sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
-                    sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) #select out a single subband, shape (nantpol, nantpol)
+            # add visibilities to previously processed files
+            visComb = np.concatenate((visComb, vis), axis=1)
+            uvwComb = np.concatenate((uvwComb, uvw), axis=0)
 
-                #correct the time due to subband stepping
-                tOffset = (nchan - sb) * fDict['int'] #the time stamp in the filename in for the last subband
-                rem = tOffset - int(tOffset) #subsecond remainder
-                tDeltas.append(datetime.timedelta(0, int(tOffset), rem*1e6))
-            meants = fDict['ts'] - SWHT.util.meanTimeDelta(tDeltas) #if using multiple subbands, use the mean offset time
-            
-        elif fDict['fmt']=='xst':
-            corrMatrix = np.fromfile(visFile, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
-            if antGains is None:
-                sbCorrMatrix = corrMatrix #shape (nantpol, nantpol)
-            else: #Apply Gains
-                sbAntGains = antGains[fDict['sb']][np.newaxis].T
-                sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
-                sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) #shape (nantpol, nantpol)
-            meants = fDict['ts']
-            print sbCorrMatrix.shape
+        elif fDict['fmt']=='KAIRA': # KAIRA LOFAR XST format visibilities
+            decomp = True
+            if opts.override: # Override XST filename metadata
+                fDict['rcu'] = opts.rcumode
+                fDict['sb'] = sbs
+                fDict['int'] = opts.int_time
+            else:
+                sbs = fDict['sb']
 
-        print 'done'
-        print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
-        
-        obs = ephem.Observer() #create an observer at the array location
-        obs.long = lon * (np.pi/180.)
-        obs.lat = lat * (np.pi/180.)
-        obs.elevation = float(elev)
-        obs.epoch = meants
-        obs.date = meants
-        print 'Observatory:', obs
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readKAIRAXST(visFn, fDict, lofarStation, sbs, times=opts.times)
+            [obsLat, obsLong, LSTangle] = obsInfo
 
-        src = ephem.FixedBody() #create a source at zenith
-        src._ra = obs.sidereal_time()
-        src._dec = obs.lat
-        src.compute(obs)
-        
-        #get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates pointing at zenith
-        xyz = []
-        for a in ants: xyz.append([a[0,0]+arr_xyz[0], a[0,1]+arr_xyz[1], a[0,2]+arr_xyz[2]])
-        xyz = np.array(xyz)
-        uvw = SWHT.ft.xyz2uvw(xyz, src, obs, freqs)
-        uu = SWHT.util.vectorize3D(uvw[:,:,:,0]).flatten()
-        vv = SWHT.util.vectorize3D(uvw[:,:,:,1]).flatten()
-        ww = SWHT.util.vectorize3D(uvw[:,:,:,2]).flatten()
-        uvw = np.vstack((uu, vv, ww)).T
+            # add visibilities to previously processed files
+            visComb = np.concatenate((visComb, vis), axis=1)
+            uvwComb = np.concatenate((uvwComb, uvw), axis=0)
 
-        #split up polarizations, vectorize the correlation matrix, and drop the lower triangle
-        xxVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 0::2, 0::2]).flatten()
-        xyVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 0::2, 1::2]).flatten()
-        yxVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 1::2, 0::2]).flatten()
-        yyVis = SWHT.util.vectorize3D(sbCorrMatrix[:, 1::2, 1::2]).flatten()
+        elif fDict['fmt']=='ms': # MS-based visibilities
+            decomp = True
 
-        #uv coverage plot
-        plt.plot(uvw[:,0], uvw[:,1], '.')
-        plt.show()
+            fDict['sb'] = sbs
 
-    elif fDict['fmt']=='ms': #MS-based visibilities
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readMS(visFn, sbs, column=opts.column)
+            [obsLat, obsLong, LSTangle] = obsInfo
 
-        fDict['sb'] = sbs
+            # add visibilities to previously processed files
+            visComb = np.concatenate((visComb, vis), axis=1)
+            uvwComb = np.concatenate((uvwComb, uvw), axis=0)
 
-        MS = tbls.table(visFile, readonly=True)
-        data_column = opts.column.upper()
-        uvw = MS.col('UVW').getcol() # [vis id, (u,v,w)]
-        vis = MS.col(data_column).getcol() #[vis id, freq id, stokes id]
-        vis = vis[:,fDict['sb'],:] #select a single subband
-        MS.close()
+        else:
+            print 'ERROR: unknown data format, exiting'
+            exit()
 
-        #freq information, convert uvw coordinates
-        SW = tbls.table(visFile + '/SPECTRAL_WINDOW')
-        freqs = SW.col('CHAN_FREQ').getcol()[0, sbs][np.newaxis] # [1, nchan]
-        #convert (u,v,w) from metres to wavelengths
-        uu = np.dot(uvw[:,0][np.newaxis].T, freqs).flatten()
-        vv = np.dot(uvw[:,1][np.newaxis].T, freqs).flatten()
-        ww = np.dot(uvw[:,2][np.newaxis].T, freqs).flatten()
-        uvw = np.vstack((uu, vv, ww)).T / cc
-        print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
-        SW.close()
-
-        #split up polarizations
-        print vis.shape
-        xxVis = vis[:,:,0].flatten() 
-        xyVis = vis[:,:,1].flatten()
-        yxVis = vis[:,:,2].flatten()
-        yyVis = vis[:,:,3].flatten()
-        print xxVis.shape
-
-        ##uv coverage plot
-        #plt.plot(uvw[:,0], uvw[:,1], '.')
-        #plt.show()
-
-    else:
-        print 'ERROR: unknown data format, exiting'
-        exit()
-    
-    #remove auto-correlations
     print 'AUTO-CORRELATIONS:', opts.autos
-    if not opts.autos:
-        autoIdx = np.argwhere(uvw[:,0]**2. + uvw[:,1]**2. + uvw[:,2]**2. == 0.)
-        xxVis[autoIdx] = 0.
-        xyVis[autoIdx] = 0.
-        yxVis[autoIdx] = 0.
-        yyVis[autoIdx] = 0.
+    if not opts.autos: # remove auto-correlations
+        autoIdx = np.argwhere(uvwComb[:,0]**2. + uvwComb[:,1]**2. + uvwComb[:,2]**2. == 0.)
+        visComb[:,autoIdx] = 0.
 
-    #prepare for Fourier transform
+    # prepare for Fourier transform
     print 'Performing Fourier Transform'
     pixels = opts.pixels
     px = [pixels,pixels]
@@ -244,20 +163,48 @@ if __name__ == '__main__':
     res = fov / px[0] #pixel resolution
     print 'Resolution(deg):', res*180./np.pi
 
-    #perform DFT or FFT
+    # convert uvw to wavelength, reduce dimensions of uvw and vis arrays for Fourier Transform
+    visComb = np.reshape(visComb, (4, visComb.shape[1]*visComb.shape[2])) # 4 pols x (number of samples * number of subbands)
+    uvwComb[:,0] *= freqs/cc
+    uvwComb[:,1] *= freqs/cc
+    uvwComb[:,2] *= freqs/cc
+    uvwComb = np.swapaxes(uvwComb, 1, 2)
+    uvwComb = np.reshape(uvwComb, ( uvwComb.shape[0]*uvwComb.shape[1], 3))
+
+    # uvw coordinates returned by the SWHT functions are in reference to a (HA=LST, dec=+90) phase centre, need to rotate uvw coordinates to (HA=0, dec=obsLat)
+    ha = float(LSTangle) # Hour Angle is set to LST, we need to reverse the rotation
+    haRotMat = np.array([   [    np.sin(ha), np.cos(ha), 0.],
+                            [-1.*np.cos(ha), np.sin(ha), 0.],
+                            [0.,             0.,         1.]]) #rotate about z-axis
+    dec = obsLat # observatory latitude
+    decRotMat = np.array([  [1.,              0.,          0.],
+                            [0.,     np.sin(dec), np.cos(dec)],
+                            [0., -1.*np.cos(dec), np.sin(dec)]]) #rotate about x-axis
+    ha0 = 0.
+    haRotMat0 = np.array([  [    np.sin(ha0), np.cos(ha0), 0.],
+                            [-1.*np.cos(ha0), np.sin(ha0), 0.],
+                            [0.,              0.,         1.]]) #rotate about z-axis
+    rotMatrix = np.dot( decRotMat, np.dot( haRotMat0, np.dot(haRotMat.T, np.identity(3).T))) # reverse the hour angle rotation in the fileio.read function, the dec rotation is the identity, so that does not need to be reversed
+    uvwComb = np.dot(rotMatrix, uvwComb.T).T
+
+    if opts.uvplot: # display the projected UV coverage
+        fig, ax = SWHT.display.dispVis2D(uvwComb)
+        plt.show()
+
+    # perform DFT or FFT
     if opts.dft:
         print 'DFT'
-        xxIm = SWHT.ft.dftImage(xxVis, uvw, px, res, mask=False, rescale=False, stokes=False)
-        xyIm = SWHT.ft.dftImage(xyVis, uvw, px, res, mask=False, rescale=False, stokes=False)
-        yxIm = SWHT.ft.dftImage(yxVis, uvw, px, res, mask=False, rescale=False, stokes=False)
-        yyIm = SWHT.ft.dftImage(yyVis, uvw, px, res, mask=False, rescale=False, stokes=False)
+        xxIm = SWHT.ft.dftImage(visComb[0], uvwComb, px, res, mask=False, rescale=False, stokes=False)
+        xyIm = SWHT.ft.dftImage(visComb[1], uvwComb, px, res, mask=False, rescale=False, stokes=False)
+        yxIm = SWHT.ft.dftImage(visComb[2], uvwComb, px, res, mask=False, rescale=False, stokes=False)
+        yyIm = SWHT.ft.dftImage(visComb[3], uvwComb, px, res, mask=False, rescale=False, stokes=False)
     else:
         print 'FFT'
-        conv = opts.conv
-        xxIm = SWHT.ft.fftImage(xxVis, uvw, px, res, mask=False, wgt=opts.weighting, conv=conv)
-        xyIm = SWHT.ft.fftImage(xyVis, uvw, px, res, mask=False, wgt=opts.weighting, conv=conv)
-        yxIm = SWHT.ft.fftImage(yxVis, uvw, px, res, mask=False, wgt=opts.weighting, conv=conv)
-        yyIm = SWHT.ft.fftImage(yyVis, uvw, px, res, mask=False, wgt=opts.weighting, conv=conv)
+        conv = opts.conv #rotate about z-axisv
+        xxIm = SWHT.ft.fftImage(visComb[0], uvwComb, px, res, mask=False, wgt=opts.weighting, conv=conv)
+        xyIm = SWHT.ft.fftImage(visComb[1], uvwComb, px, res, mask=False, wgt=opts.weighting, conv=conv)
+        yxIm = SWHT.ft.fftImage(visComb[2], uvwComb, px, res, mask=False, wgt=opts.weighting, conv=conv)
+        yyIm = SWHT.ft.fftImage(visComb[3], uvwComb, px, res, mask=False, wgt=opts.weighting, conv=conv)
 
     #save complex image to pickle file
     if opts.pkl is None: outPklFn = 'tempImage.pkl'
@@ -268,39 +215,9 @@ if __name__ == '__main__':
     SWHT.fileio.writeImgPkl(outPklFn, np.array([xxIm,xyIm,yxIm,yyIm]), fDict, res=res, fttype=fttype, imtype='complex')
     print 'done'
     
-    #TODO: plotting function
     #display stokes plots
     if not opts.nodisplay or not (opts.savefig is None):
-        #generate stokes images
-        iIm = (xxIm + yyIm).real
-        qIm = (xxIm - yyIm).real
-        uIm = (xyIm + yxIm).real
-        vIm = (yxIm - xyIm).imag
-    
-        plt.subplot(2,2,1)
-        plt.imshow(iIm)
-        plt.xlabel('Pixels (E-W)')
-        plt.ylabel('Pixels (N-S)')
-        plt.title('I')
-        plt.colorbar()
-        plt.subplot(2,2,2)
-        plt.imshow(qIm)
-        plt.xlabel('Pixels (E-W)')
-        plt.ylabel('Pixels (N-S)')
-        plt.title('Q')
-        plt.colorbar()
-        plt.subplot(2,2,3)
-        plt.imshow(uIm)
-        plt.xlabel('Pixels (E-W)')
-        plt.ylabel('Pixels (N-S)')
-        plt.title('U')
-        plt.colorbar()
-        plt.subplot(2,2,4)
-        plt.imshow(vIm)
-        plt.xlabel('Pixels (E-W)')
-        plt.ylabel('Pixels (N-S)')
-        plt.title('V')
-        plt.colorbar()
+        fig, ax = SWHT.display.disp2DStokes(xxIm, xyIm, yxIm, yyIm)
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay: plt.show()
 

@@ -271,11 +271,14 @@ def make2Dimage(coeffs, res, px=[64, 64], phs=[0., 0.]):
                            [        0.,             0., 1.]]) #rotate about the z-axis
     dec = np.pi - phs[1] #adjust relative to the north pole at -pi/2
     print 'dec', dec, 'phs', phs[1]
+    # TODO: might need to do a transpose to apply the inverse rotation
     decRotation = np.array([[1.,0.,0.],
                             [0., np.cos(dec), -1.*np.sin(dec)],
                             [0., np.sin(dec), np.cos(dec)]]) #rotate about the x-axis
     XYZ = np.vstack((X.flatten(), Y.flatten(), Z.flatten()))
-    XYZ0 = np.dot(np.dot(raRotation, decRotation), XYZ) #order of rotation is important
+    rotMatrix = np.dot(decRotation, raRotation)
+    XYZ0 = np.dot(rotMatrix, XYZ) #order of rotation is important
+    #XYZ0 = np.dot(np.dot(raRotation, decRotation), XYZ) #order of rotation is important
     r0, phi0, theta0 = util.cart2sph(XYZ0[0,:], XYZ0[1,:], XYZ0[2,:])
     r0 = r0.reshape(thetap.shape) #not used, should all be nearly 1
     phi0 = phi0.reshape(thetap.shape) #rotated phi values

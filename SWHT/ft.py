@@ -177,9 +177,9 @@ def fftImage(d, uvw, px, res, mask=False, conv='fast', wgt='natural'):
 
     if wgt.startswith('uni'): gridVis /= gridWgt #uniform weighting, default is natural weighting
             
-    gridVis = np.fft.fftshift(gridVis) #(0,0) position is in the middle, need to shift it to a corner
-    im = np.fft.fftshift(np.fft.fft2(gridVis)) #shift (0,0) back to the middle
-    im = np.rot90(np.fliplr(im)) #make top-left corner (0,0) the south-east point
+    gridVis = np.fft.ifftshift(gridVis) #(0,0) position is in the middle, need to shift it to a corner
+    im = np.fft.ifftshift(np.fft.ifft2(gridVis)) #shift (0,0) back to the middle
+    im = np.fliplr(np.rot90(im)) #make top-left corner (0,0) the south-east point
     
     print time.time() - start_time
     if mask: return im, maskIm
