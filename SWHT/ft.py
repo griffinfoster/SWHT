@@ -10,6 +10,8 @@ import sys,os
 import struct
 import time
 
+##### START: These function are not used anymore
+
 def phsCenterSrc(obs, t):
     """return an ephem FixedBody source based on the time offset from the obs"""
     src = ephem.FixedBody()
@@ -64,6 +66,8 @@ def xyz2uvw(xyz, src, obs, f):
             if i==j: continue
             uvw[:, i, j, :] = gen_uvw(xyz[i], xyz[j], src, obs, f)[:,0,:]
     return uvw
+
+##### STOP: These function are not used anymore
 
 def dft2(d, l, m, u, v, psf=False):
     """compute the 2d DFT for position (m,l) based on (d,uvw)"""
@@ -159,7 +163,7 @@ def fftImage(d, uvw, px, res, mask=False, conv='fast', wgt='natural'):
             truncDist = deltau/2. #truncate box car to within a single pixel
         if conv.startswith('gauss'):
             convFunc = convGauss(deltau/2., deltav/2.) #half-power point at 1/2 a UV pixel distance
-            truncDist = deltau*4. #truncate the convolution function to a 4 pixel radius
+            truncDist = deltau*5. #truncate the convolution function to a 5 pixel radius
         if conv.startswith('prolate'):
             convFunc = convProlate(deltau, deltav)
             truncDist = deltau #only values of sqrt(u**2 + v**2) < deltau are valid

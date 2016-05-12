@@ -355,28 +355,6 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
             obs.epoch = ts[sbIdx, tIdx]
             obs.date = ts[sbIdx, tIdx]
 
-            ## in order to accommodate multiple observations/subbands at different times/sidereal times all the positions need to be rotated relative to sidereal time 0
-            #LSTangle = obs.sidereal_time() # radians
-            #print 'LST:',  LSTangle, 'Dec:', obs.lat
-            #rotAngle = float(LSTangle) - float(obs.long) # adjust LST to that of the Observatory longitutude to make the LST that at Greenwich
-            #print float(LSTangle) * 180./np.pi, float(obs.long) * 180./np.pi, rotAngle * 180./np.pi
-            ## TODO: to be honest, the next two lines change the LST to make the images come out but i haven't worked out the coordinate transforms, so for now these work without justification
-            #rotAngle += np.pi
-            #rotAngle *= -1
-            ## Rotation matrix for antenna positions
-            #rotMatrix = np.array([[np.cos(rotAngle), -1.*np.sin(rotAngle), 0.],
-            #                      [np.sin(rotAngle), np.cos(rotAngle),     0.],
-            #                      [0.,               0.,                   1.]]) # rotate about the z-axis
-            #rotMatrix = np.array([[1., 0., 0.],
-            #                      [0., 1., 0.],
-            #                      [0., 0., 1.]]) # rotate about the z-axis
-
-            ## get antenna positions in ITRF (x,y,z) format and compute the (u,v,w) coordinates referenced to sidereal time 0, this works only for zenith snapshot xyz->uvw conversion
-            #xyz = np.dot(ants[:,0,:], rotMatrix)
-
-            #repxyz = np.repeat(xyz, nants, axis=0).reshape((nants, nants, 3))
-            #uvw[tIdx, :, :, sbIdx] = util.vectorize(repxyz - np.transpose(repxyz, (1, 0, 2)))
-
             LSTangle = obs.sidereal_time() # radians
             print 'LST:',  LSTangle, 'Dec:', obs.lat
 
@@ -590,7 +568,7 @@ def readMS(fn, sbs, column='DATA'):
     try:
         import casacore.tables as tbls
     except ImportError:
-        print 'ERROR: could not import casacore.tables, will not be able to read measurement sets'
+        print 'ERROR: could not import casacore.tables, cannot read measurement sets'
         exit(1)
 
     MS = tbls.table(fn, readonly=True)
@@ -633,6 +611,47 @@ def readMS(fn, sbs, column='DATA'):
     uvwRotRepeat = np.repeat(uvwRot, len(sbs), axis=2)
 
     return np.transpose(vis, (2,0,1)), uvwRotRepeat, freqs, [obsLat, obsLong, LSTangle]
+
+    #nants = ants.shape[0]
+    #ncorrs = nants*(nants+1)/2
+    #nints = ts.shape[1]
+    #uvw = np.zeros((nints, ncorrs, 3, len(sbs)), dtype=float)
+    #vis = np.zeros((4, nints, ncorrs, len(sbs)), dtype=complex) # 4 polarizations: xx, xy, yx, yy
+    #for sbIdx, sb in enumerate(sbs):
+    #    for tIdx in np.arange(nints):
+    #        obs.epoch = ts[sbIdx, tIdx]
+    #        obs.date = ts[sbIdx, tIdx]
+
+    #        LSTangle = obs.sidereal_time() # radians
+    #        print 'LST:',  LSTangle, 'Dec:', obs.lat
+
+    #        # Compute baselines in XYZ
+    #        antPosRep = np.repeat(ants[:,0,:], nants, axis=0).reshape((nants, nants, 3)) # ants is of the form [nants, npol, 3], assume pols are at the same position
+    #        xyz = util.vectorize(antPosRep - np.transpose(antPosRep, (1, 0, 2)))
+
+    #        # Rotation matricies for XYZ -> UVW transform
+    #        dec = float(np.pi/2.) # set the north pole to be dec 90, thus the dec rotation matrix below is not really needed
+    #        decRotMat = np.array([  [1.,              0.,          0.],
+    #                                [0.,     np.sin(dec), np.cos(dec)],
+    #                                [0., -1.*np.cos(dec), np.sin(dec)]]) #rotate about x-axis
+    #        ha = float(LSTangle) - 0. # Hour Angle in reference to longitude/RA=0
+    #        haRotMat = np.array([   [    np.sin(ha), np.cos(ha), 0.],
+    #                                [-1.*np.cos(ha), np.sin(ha), 0.],
+    #                                [0.,             0.,         1.]]) #rotate about z-axis
+    #        rotMatrix = np.dot(decRotMat, haRotMat)
+
+    #        uvw[tIdx, :, :, sbIdx] = np.dot(rotMatrix, xyz.T).T
+
+    #        # split up polarizations, vectorize the correlation matrix, and drop the lower triangle
+    #        vis[0, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 0::2, 0::2])
+    #        vis[1, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 0::2])
+    #        vis[2, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 0::2, 1::2])
+    #        vis[3, tIdx, :, sbIdx] = util.vectorize(corrMatrix[sbIdx, tIdx, 1::2, 1::2])
+
+    #vis = np.reshape(vis, (vis.shape[0], vis.shape[1]*vis.shape[2], vis.shape[3])) 
+    #uvw = np.reshape(uvw, (uvw.shape[0]*uvw.shape[1], uvw.shape[2], uvw.shape[3])) 
+
+    #return vis, uvw, LSTangle
 
 if __name__ == '__main__':
     print 'Running test cases...'
