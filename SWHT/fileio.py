@@ -350,12 +350,18 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
     nints = ts.shape[1]
     uvw = np.zeros((nints, ncorrs, 3, len(sbs)), dtype=float)
     vis = np.zeros((4, nints, ncorrs, len(sbs)), dtype=complex) # 4 polarizations: xx, xy, yx, yy
+
     for sbIdx, sb in enumerate(sbs):
         for tIdx in np.arange(nints):
-            obs.epoch = ts[sbIdx, tIdx]
-            obs.date = ts[sbIdx, tIdx]
+            #TODO: using a reference Obs emperically works, but I can't quite justify it yet
+            #TODO: using a reference Obs probably breaks the FT script, check if there is another roation needed
+            refObs = lofarObserver(0., -90., 0., ts[sbIdx, tIdx]) # create an observatory at (lat,long)=(0,-90) to get the sidereal time at the reference position, this is along the Y axis I believe
+            LSTangle = refObs.sidereal_time() # sidereal time at reference location, radians
 
-            LSTangle = obs.sidereal_time() # radians
+            #obs.epoch = ts[sbIdx, tIdx]
+            #obs.date = ts[sbIdx, tIdx]
+
+            #LSTangle = obs.sidereal_time() # radians
             print 'LST:',  LSTangle, 'Dec:', obs.lat
 
             # Compute baselines in XYZ
@@ -368,6 +374,7 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
                                     [0.,     np.sin(dec), np.cos(dec)],
                                     [0., -1.*np.cos(dec), np.sin(dec)]]) #rotate about x-axis
             ha = float(LSTangle) - 0. # Hour Angle in reference to longitude/RA=0
+            #ha = float(LSTangle) - 0. - (np.pi/2.) # Hour Angle in reference to longitude/RA=0, use if refObs at (0,0) 
             haRotMat = np.array([   [    np.sin(ha), np.cos(ha), 0.],
                                     [-1.*np.cos(ha), np.sin(ha), 0.],
                                     [0.,             0.,         1.]]) #rotate about z-axis
@@ -384,6 +391,7 @@ def lofarGenUVW(corrMatrix, ants, obs, sbs, ts):
     vis = np.reshape(vis, (vis.shape[0], vis.shape[1]*vis.shape[2], vis.shape[3])) 
     uvw = np.reshape(uvw, (uvw.shape[0]*uvw.shape[1], uvw.shape[2], uvw.shape[3])) 
 
+    #TODO: i don't think we need to return the LST angle
     return vis, uvw, LSTangle
 
 def readACC(fn, fDict, lofarStation, sbs, calTable=None):
@@ -553,6 +561,7 @@ def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None, times='0'):
 
     return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
 
+# TODO: add option to not apply rotation, useful for standard FT imaging
 def readMS(fn, sbs, column='DATA'):
     """Return the visibilites and UVW coordinates from a SE607 LOFAR XST format file
     fn: XST filename

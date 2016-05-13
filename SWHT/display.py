@@ -107,7 +107,7 @@ def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
     """Display 3D, equal in phi and theta (Driscoll and Healy mapping) image
     img: 2D array of complex flux values
     phi: 2D array of phi values
-    theta: 2D array of thetat values
+    theta: 2D array of theta values
         img, phi, theta are of the same shape, they are the output of swht.make3Dimage()
     dmode: string, data mode (abs, real, imaginary, phase)
     cmap: string, matplotlib colormap name

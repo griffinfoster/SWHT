@@ -200,7 +200,8 @@ if __name__ == '__main__':
         elif polMode=='XY': polVisComb = visComb[1]
         elif polMode=='YX': polVisComb = visComb[2]
         elif polMode=='YY': polVisComb = visComb[3]
-        imgCoeffs = SWHT.swht.swhtImageCoeffs(polVisComb, uvwComb, freqs, lmax=opts.lmax, lmin=opts.lmin)
+
+        imgCoeffs = SWHT.swht.swhtImageCoeffs(polVisComb, uvwComb, freqs, lmax=opts.lmax, lmin=opts.lmin) # perform SWHT
 
         # save image coefficients to file
         if opts.ocoeffs is None: outCoeffPklFn = 'tempCoeffs.pkl'
@@ -214,8 +215,6 @@ if __name__ == '__main__':
         if opts.imageMode.startswith('heal'): outFn = 'tempImage.hpx'
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
-
-    print obsLat, obsLong, LSTangle
 
     #TODO: not doing the correct projection
     if opts.imageMode.startswith('2'): # Make a 2D hemispheric image
@@ -260,6 +259,6 @@ if __name__ == '__main__':
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay:
-        if opts.imageMode.startswith('heal'): hp.mollview(np.abs(m))
+        if opts.imageMode.startswith('heal'): hp.mollview(m.real, coord='CG')
         plt.show()
 

@@ -53,7 +53,8 @@ def computeVislm(lmax, k, r, theta, phi, vis, lmin=0):
 
     returns: [lmax+1, 2*lmax+1, nfreq] array of coefficients, only partially filled, see for loops in this function
     """
-    #vis *= 2. #Treat the conjugate baslines as doubling the non-conjugate visibilities
+    #vis *= 2. #Treat the conjugate baselines as doubling the non-conjugate visibilities
+    #TODO: include conjugate baselines?
 
     nsbs = vis.shape[1]
     vislm = np.zeros((lmax+1, 2*lmax+1, nsbs), dtype=complex)
