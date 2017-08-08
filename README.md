@@ -50,6 +50,14 @@ NOTE: the scripts will not be installed globally.
 
 #### Examples
 
+Example LBA and HBA correlation files is available at:  
+
+* LBA :
+	* https://zenodo.org/record/840405/files/20150607_122433_acc_512x192x192.dat
+	* https://zenodo.org/record/840405/files/20120513_052251_acc_512x192x192.dat
+* HBA :
+	* https://zenodo.org/record/840405/files/20150915_191137_rcu5_sb60_int10_dur10_elf0f39fe2034ea85fc02b3cc1544863053b328fd83291e880cd0bf3c3d3a50a164a3f3e0c070c73d073f4e43849c0e93b_xst.dat
+
 For any script, use the '-h' argument to print out help on available input options.
 
 ```
