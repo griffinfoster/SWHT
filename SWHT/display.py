@@ -66,12 +66,12 @@ def disp2DStokes(xx, xy, yx, yy, cmap='jet'):
     uIm = (xy + yx).real
     vIm = (yx - xy).imag
 
-    fig, ax = plt.subplots(2, 2)
+    fig, ax = plt.subplots(2, 2, figsize=(10,8))
 
     # Top Left
     plt.axes(ax[0,0])
     plt.imshow(iIm)
-    plt.xlabel('Pixels (E-W)')
+    #plt.xlabel('Pixels (E-W)')
     plt.ylabel('Pixels (N-S)')
     plt.colorbar()
     plt.title('I')
@@ -79,8 +79,8 @@ def disp2DStokes(xx, xy, yx, yy, cmap='jet'):
     # Top Right
     plt.axes(ax[0,1])
     plt.imshow(qIm)
-    plt.xlabel('Pixels (E-W)')
-    plt.ylabel('Pixels (N-S)')
+    #plt.xlabel('Pixels (E-W)')
+    #plt.ylabel('Pixels (N-S)')
     plt.colorbar()
     plt.title('Q')
 
@@ -96,7 +96,7 @@ def disp2DStokes(xx, xy, yx, yy, cmap='jet'):
     plt.axes(ax[1,1])
     plt.imshow(vIm)
     plt.xlabel('Pixels (E-W)')
-    plt.ylabel('Pixels (N-S)')
+    #plt.ylabel('Pixels (N-S)')
     plt.colorbar()
     plt.title('V')
 
@@ -132,18 +132,27 @@ def disp3D(img, phi, theta, dmode='abs', cmap='jet'):
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import cm
     from matplotlib.colors import Normalize
-    fig = plt.figure()
+
+    fig = plt.figure(figsize=(10,8))
     ax = fig.gca(projection='3d')
     imin = img.min()
     imax = img.max()
+
     scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=plt.get_cmap(cmap))
     #scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.jet)
     #scalarMap = cm.ScalarMappable(norm=Normalize(vmin=imin, vmax=imax), cmap=cm.gist_earth_r)
     scalarMap.set_array(img)
     C = scalarMap.to_rgba(img)
-    surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=C, antialiased=True)
-    #wire = ax.plot_wireframe(1.05*X, 1.05*Y, 1.05*Z, rstride=10, cstride=10, color='black') # RA/Dec grid
-    fig.colorbar(scalarMap)
+    surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, facecolors=C, antialiased=True, linewidth=1)
+    #wire = ax.plot_wireframe(1.01*X, 1.01*Y, 1.01*Z, rstride=5, cstride=5, color='black') # RA/Dec grid
+
+    fig.colorbar(scalarMap, shrink=0.7)
+    ax.set_axis_off()
+    ax.set_xlim(-0.75,0.75)
+    ax.set_ylim(-0.75,0.75)
+    ax.set_zlim(-0.75,0.75)
+    ax.set_aspect('auto')
+
     return fig, ax
 
 def dispCoeffs(imgCoeffs, zeroDC=True, vis=False):
@@ -208,16 +217,17 @@ def dispCoeffs(imgCoeffs, zeroDC=True, vis=False):
     return fig, ax
 
 def dispVis3D(uvw):
+    # TODO: sometimes wavelength, sometimes metres
     """3D plot of UVW coverage/sampling
     uvw: (N, 3) array of UVW coordinates
 
     returns: matplotlib figure and subplots
     """
     from mpl_toolkits.mplot3d import Axes3D
-    fig = plt.figure()
+    fig = plt.figure(figsize=(8,6))
     ax = fig.gca(projection='3d')
     
-    ax.scatter(uvw[:,0], uvw[:,1], uvw[:,2], edgecolors='none', alpha=0.5)
+    ax.scatter(uvw[:,0], uvw[:,1], uvw[:,2], edgecolors=None, alpha=0.5)
     ax.set_xlabel('U (m)')
     ax.set_ylabel('V (m)')
     ax.set_zlabel('W (m)')
@@ -225,20 +235,21 @@ def dispVis3D(uvw):
     return fig, ax
 
 def dispVis2D(uvw):
+    # TODO: sometimes wavelength, sometimes metres
     """2D plot of UV coverage/sampling
     uvw: (N, 3) array of UVW coordinates
 
     returns: matplotlib figure and subplots
     """
-    fig, ax = plt.subplots(2, 1, figsize=(6,8))
-    #ax[0].scatter(uvw[:,0], uvw[:,1], edgecolors='none', alpha=0.5)
+    fig, ax = plt.subplots(2, 1, figsize=(6,9))
     ax[0].plot(uvw[:,0], uvw[:,1], '.', alpha=0.5)
-    ax[0].set_xlabel('U (m)')
-    ax[0].set_ylabel('V (m)')
+    ax[0].set_xlabel('U ($\lambda$)')
+    ax[0].set_ylabel('V ($\lambda$)')
+    ax[0].set_aspect('equal', 'datalim')
 
     ax[1].plot(np.sqrt(uvw[:,0]**2. + uvw[:,1]**2.), uvw[:,2], '.', alpha=0.5)
-    ax[1].set_xlabel('UVdist (m)')
-    ax[1].set_ylabel('W (m)')
+    ax[1].set_xlabel('UVdist ($\lambda$)')
+    ax[1].set_ylabel('W ($\lambda$)')
 
     return fig, ax
 

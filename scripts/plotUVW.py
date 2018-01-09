@@ -13,7 +13,8 @@ import SWHT
 #cc = scipy.constants.c
 cc = 299792458.0 #speed of light, m/s
 
-#TODO: the rotation is off, need to sort this out
+# TODO: plot as a function of wavelength
+# TODO: the rotation is off, need to sort this out
 
 if __name__ == '__main__':
     from optparse import OptionParser
@@ -44,6 +45,8 @@ if __name__ == '__main__':
         help = 'MS ONLY: select which data column to image, default: CORRECTED_DATA')
     o.add_option('--override', dest='override', action='store_true',
         help = 'LOFAR XST ONLY: override filename metadata for RCU, integration length, and subband')
+    o.add_option('-m', '--mode', dest='mode', default='3D',
+        help = 'UV coverage mode, 3D: UVW coverage, 2D: UV coverage, default: 3D')
     o.add_option('-t', '--times', dest='times', default='0',
         help = 'KAIRA ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
     opts, args = o.parse_args(sys.argv[1:])
@@ -140,7 +143,10 @@ if __name__ == '__main__':
             print 'ERROR: unknown data format, exiting'
             exit()
 
-    fig, ax = SWHT.display.dispVis3D(uvwComb)
+    if opts.mode.lower() == '3d':
+        fig, ax = SWHT.display.dispVis3D(uvwComb)
+    else:
+        fig, ax = SWHT.display.dispVis2D(uvwComb)
 
     if not (opts.savefig is None): plt.savefig(opts.savefig)
     if not opts.nodisplay: plt.show()

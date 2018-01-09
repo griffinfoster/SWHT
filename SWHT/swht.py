@@ -3,6 +3,8 @@ Functions for producing SWHT-based dirty images
 Based on T. Carozzi MATLAB code
 """
 
+# TODO: fast SWHT by gridding to UVW volume, include weighting functions
+
 import numpy as np
 import scipy.special
 import math
@@ -346,6 +348,7 @@ def makeHEALPix(coeffs, nside=64):
 
     return hpmap
 
+# TODO: robust tests
 if __name__ == "__main__":
     print 'Running test cases'
 
