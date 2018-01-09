@@ -24,7 +24,8 @@ import ecef, lofarConfig, util
 
 def parse(fn, fmt=None):
     """Parse an input visibility filename to determine meta data and type
-    XST files are assumed to follow the SE607 format: <date>_<time>_rcu<id>_sb<subband>_int<integration length>_dur<duration of observation>[_<HBA config in hex>]_xst.dat
+    XST files in standard format: <date>_<time>_sb<subband>_xst.dat
+    XST files in the SE607 format: <date>_<time>_rcu<id>_sb<subband>_int<integration length>_dur<duration of observation>[_<HBA config in hex>]_xst.dat
     fmt: if None then automatically determines format based on filename, else can be set to 'ms' (measurement set), 'acc' (LOFAR ACC), 'xst' (LOFAR XST)
     returns: dictionary"""
     fDict = {}
@@ -52,14 +53,21 @@ def parse(fn, fmt=None):
         if metaData[2].startswith('acc'): # the file is a LOFAR ACC file
             fDict['fmt'] = 'acc'
             fDict['shape'] = map(int, metaData[3].split('.')[0].split('x'))
-        elif metaData[-1].startswith('xst.dat'): # the file is a SE607 format LOFAR XST file
-            fDict['fmt'] = 'xst'
-            fDict['rcu'] = int(metaData[2][3:])
-            fDict['sb'] = np.array( [int(metaData[3][2:])] )
-            fDict['int'] = float(metaData[4][3:])
-            fDict['dur'] = float(metaData[5][3:])
-            if len(metaData)==8: # HBA all-sky file, get element identifiers
-                fDict['elem'] = metaData[6][2:]
+        elif metaData[-1].startswith('xst.dat'):
+            if len(metaData) == 4: # Standard XST file
+                fDict['fmt'] = 'xst'
+                fDict['sb'] = np.array( [int(metaData[2][2:])] )
+                fDict['rcu'] = 1  # default, overridden in scripts
+                fDict['int'] = 1. # default, overridden in scripts
+                fDict['dur'] = 1. # default, overridden in scripts
+            else: # the file is a SE607 format LOFAR XST file
+                fDict['fmt'] = 'xst'
+                fDict['rcu'] = int(metaData[2][3:])
+                fDict['sb'] = np.array( [int(metaData[3][2:])] )
+                fDict['int'] = float(metaData[4][3:])
+                fDict['dur'] = float(metaData[5][3:])
+                if len(metaData)==8: # HBA all-sky file, get element identifiers
+                    fDict['elem'] = metaData[6][2:]
     elif fn.lower().endswith('.pkl') or fmt=='pkl': # the file is a set of SWHT image coefficients
         fDict['fmt'] = 'pkl'
     else:
@@ -225,8 +233,8 @@ def lofarACCSelectSbs(fn, sbs, nchan, nantpol, intTime, antGains=None):
 
     return sbCorrMatrix, tDeltas
 
-def lofarSE607XST(fn, sb, nantpol, antGains=None):
-    """Read in correlation matrix from a SE607 format XST file
+def lofarXST(fn, sb, nantpol, antGains=None):
+    """Read in correlation matrix from a XST file
     fn: string, XST filename
     sb: [int], subband ID, 1 element list for consistency with lofarACCSelectSbs()
     nantpol: int, number of antenna-polarizations
@@ -449,8 +457,8 @@ def readACC(fn, fDict, lofarStation, sbs, calTable=None):
 
     return vis, uvw, freqs, [obsLat, obsLong, LSTangle]
 
-def readSE607XST(fn, fDict, lofarStation, sbs, calTable=None):
-    """Return the visibilites and UVW coordinates from a SE607 LOFAR XST format file
+def readXST(fn, fDict, lofarStation, sbs, calTable=None):
+    """Return the visibilites and UVW coordinates from a LOFAR XST format file
     fn: XST filename
     fDict: dictionary of file format meta data, see parse()
     lofarStation: instance, see lofarConfig.py
@@ -489,7 +497,7 @@ def readSE607XST(fn, fDict, lofarStation, sbs, calTable=None):
     # get correlation matrix for subbands selected
     nantpol = nants * npols
     print 'Reading in visibility data file ...',
-    corrMatrix, tDeltas = lofarSE607XST(fn, fDict['sb'], nantpol, antGains)
+    corrMatrix, tDeltas = lofarXST(fn, fDict['sb'], nantpol, antGains)
     print 'done'
     
     # create station observer
@@ -563,8 +571,8 @@ def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None, times='0'):
 
 # TODO: add option to not apply rotation, useful for standard FT imaging
 def readMS(fn, sbs, column='DATA'):
-    """Return the visibilites and UVW coordinates from a SE607 LOFAR XST format file
-    fn: XST filename
+    """Return the visibilites and UVW coordinates from a Measurement Set
+    fn: MS filename
     column: string, data column
     sbs: 1-D array of subband IDs
 
