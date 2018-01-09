@@ -66,6 +66,8 @@ if __name__ == '__main__':
         help='Imaging mode: 2D (hemisphere flattened), 3D, healpix, coeff (coefficients) default: 2D')
     o.add_option('--uvwplot', dest='uvwplot', action='store_true',
         help='Display a 3D UVW coverage/sampling plot')
+    o.add_option('--psf', dest='psf', action='store_true',
+        help='Plot the PSF instead of the image')
     o.add_option('-t', '--times', dest='times', default='0',
         help = 'KAIRA ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
     o.add_option('--pol', dest='polMode', default='I',
@@ -180,6 +182,9 @@ if __name__ == '__main__':
         print 'MAXIMUM RES: %f (radians) %f (deg)'%(maxRes, maxRes * (180. / np.pi))
         idealLmax = int(np.pi / maxRes)
         print 'SUGGESTED L_MAX: %i, %i (oversample 3), %i (oversample 5)'%(idealLmax, idealLmax*3, idealLmax*5)
+
+        if opts.psf:
+           visComb = np.ones_like(visComb) 
 
         print 'AUTO-CORRELATIONS:', opts.autos
         if not opts.autos: # remove auto-correlations

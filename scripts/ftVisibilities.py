@@ -61,6 +61,8 @@ if __name__ == '__main__':
         help = 'Weighting mode, natural (default), uniform')
     o.add_option('--fov', dest='fov', default=180., type='float',
         help = 'Field of View in degrees, default: 180 (all-sky)')
+    o.add_option('--psf', dest='psf', action='store_true',
+        help='Plot the PSF instead of the image')
     o.add_option('-t', '--times', dest='times', default='0',
         help = 'KAIRA ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
     o.add_option('--uvplot', dest='uvplot', action='store_true',
@@ -190,6 +192,10 @@ if __name__ == '__main__':
     if opts.uvplot: # display the projected UV coverage
         fig, ax = SWHT.display.dispVis2D(uvwComb)
         plt.show()
+
+    # Plot the PSF
+    if opts.psf:
+        visComb = np.ones_like(visComb)
 
     # perform DFT or FFT
     if opts.dft:

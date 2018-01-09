@@ -28,7 +28,7 @@ def eq2top_m(ha, dec):
     sin_H, cos_H = np.sin(ha), np.cos(ha)
     sin_d, cos_d = np.sin(dec), np.cos(dec)
     zero = np.zeros_like(ha)
-    map =  np.array([[    sin_H    ,       cos_H  ,       zero  ],
+    map =  np.array(   [[    sin_H    ,       cos_H  ,       zero  ],
                         [ -sin_d*cos_H,   sin_d*sin_H,      cos_d  ],
                         [  cos_d*cos_H,  -cos_d*sin_H,      sin_d  ]])
     if len(map.shape) == 3: map = map.transpose([2, 0, 1])
