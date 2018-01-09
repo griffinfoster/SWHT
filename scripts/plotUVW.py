@@ -86,7 +86,7 @@ if __name__ == '__main__':
             visComb = np.concatenate((visComb, vis), axis=1)
             uvwComb = np.concatenate((uvwComb, uvw), axis=0)
 
-        elif fDict['fmt']=='xst': # SE607 LOFAR XST format visibilities
+        elif fDict['fmt']=='xst': # LOFAR XST format visibilities
             decomp = True
             if opts.override: # Override XST filename metadata
                 fDict['rcu'] = opts.rcumode
@@ -95,7 +95,7 @@ if __name__ == '__main__':
             else:
                 sbs = fDict['sb']
 
-            vis, uvw, freqs, obsInfo = SWHT.fileio.readSE607XST(visFn, fDict, lofarStation, sbs)
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readXST(visFn, fDict, lofarStation, sbs)
             [obsLat, obsLong, LSTangle] = obsInfo
 
             # add visibilities to previously processed files

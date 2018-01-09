@@ -64,7 +64,7 @@ if __name__ == '__main__':
     o.add_option('--psf', dest='psf', action='store_true',
         help='Plot the PSF instead of the image')
     o.add_option('-t', '--times', dest='times', default='0',
-        help = 'KAIRA ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
+        help = 'KAIRAXST ONLY: Select which integration(s) to image, can use a[seconds] to average, d[step size] to decimate, of a specific range of integrations similar to the subband selection option, default:0 (select the first integration of the file)')
     o.add_option('--uvplot', dest='uvplot', action='store_true',
         help='Display a 2D UV coverage/sampling plot of the projected baselines')
     opts, args = o.parse_args(sys.argv[1:])
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     if (not (opts.station is None)) or (not (opts.ant_field is None)): # If using LOFAR data, get station information
         lofarStation = SWHT.lofarConfig.getLofarStation(name=opts.station, affn=opts.ant_field, aafn=opts.ant_array, deltas=opts.deltas)
         antGains = None # Setup variable so that the gain table isn't re-read for every file if used
-        if lofarStation.name=='KAIRA': dataFmt='KAIRA'
+        if lofarStation.name=='KAIRAXST': dataFmt='KAIRA'
 
     ####################
     ## Read Visibilities
