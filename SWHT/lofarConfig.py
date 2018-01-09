@@ -9,7 +9,7 @@ import struct
 
 #HARDCODED path, need to make this configurable to the module, something in setup.py?
 #StaticMetaData = '/home/griffin/sw/SWHT/SWHT/data/LOFAR/StaticMetaData/'
-StaticMetaData = __file__.split('lofarConfig.py')[0] + 'data/LOFAR/StaticMetaData/'
+STATICMETADATA = __file__.split('lofarConfig.py')[0] + 'data/LOFAR/StaticMetaData/'
 
 rcuInfo = [ {'mode':'OFF', 'rcuID':0, 'array_type':'LBA', 'bw':100000000., 'offset':0., 'nchan':512},                    #0
             {'mode':'LBL_HPF10MHZ', 'rcuID':1, 'array_type':'LBA', 'bw':100000000., 'offset':0., 'nchan':512},           #1
@@ -31,9 +31,9 @@ def getLofarStation(name=None, affn=None, aafn=None, deltas=None, noarrays=True)
     confValid = False #used to check if the input ant_array and ant_field pair is valid
     dfn = None #HBA deltas filename to pass on, favour input filename over repository file
     if name is not None: #check if the station name is valid
-        repoaafn = glob.glob(StaticMetaData+name+'-AntennaArrays.conf')
-        repoaffn = glob.glob(StaticMetaData+name+'-AntennaField.conf')
-        repodfn = glob.glob(StaticMetaData+name+'-iHBADeltas.conf')
+        repoaafn = glob.glob(STATICMETADATA + name + '-AntennaArrays.conf')
+        repoaffn = glob.glob(STATICMETADATA + name + '-AntennaField.conf')
+        repodfn = glob.glob(STATICMETADATA + name + '-iHBADeltas.conf')
         if len(repoaffn)==1 and noarrays: #case: only require AntennaField.conf file
             repoaffn = repoaffn[0]
             repoaafn = None
@@ -120,18 +120,30 @@ class antennaField():
             infoStr,dataStr = l.split('[')
             infoStr = infoStr.strip()
             if infoStr.lower().startswith('normal'):
-                name,mode,length = infoStr.split(' ')
+                name, mode, length = infoStr.split(' ')
                 self.normVec[mode] = np.array(map(float, dataStr.strip().split(' ')))
             elif infoStr.lower().startswith('rotation'):
-                name,mode,l0,fill,l1 = infoStr.split(' ')
-                self.rotMatrix[mode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0), int(l1)))
+                name, mode, l0, fill, l1 = infoStr.split(' ')
+                if len(l0) == 1: # '3' Old conf format
+                    self.rotMatrix[mode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0), int(l1)))
+                else: # '(0, 2)' New conf format
+                    l0 = l0.split(',')[-1][:-1]
+                    l1 = l1.split(',')[-1][:-1]
+                    self.rotMatrix[mode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0) + 1, int(l1) + 1))
             elif infoStr.lower().startswith('lba') or infoStr.lower().startswith('hba'):
                 mode,length = infoStr.split(' ')
                 self.location[mode] = np.array(map(float, dataStr.strip().split(' ')))
                 lastMode = mode
             else: #antenna positions
-                l0,f0,l1,f1,l2 = infoStr.split(' ')
-                self.antpos[lastMode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0), int(l1), int(l2)))
+                l0, f0, l1, f1, l2 = infoStr.split(' ')
+                print l0, f0, l1, f1, l2
+                if len(l0) < 3: # '96' Old conf format
+                    self.antpos[lastMode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0), int(l1), int(l2)))
+                else: # '(0, 95)' New conf format
+                    l0 = l0.split(',')[-1][:-1]
+                    l1 = l1.split(',')[-1][:-1]
+                    l2 = l2.split(',')[-1][:-1]
+                    self.antpos[lastMode] = np.array(map(float, dataStr.strip().split(' '))).reshape((int(l0) + 1, int(l1) + 1, int(l2) + 1))
         #convert antenna positions to local horizon coordinate system
         for mode in self.antpos:
             #a bit hacky, but some stations use HBA0 and HBA1 for the rotation matrix and HBA for the antenna postions
@@ -226,29 +238,29 @@ def readCalTable(fn, nants=96, nsbs=512, npols=2):
 if __name__ == '__main__':
     print 'Running test cases'
 
-    print 'Using data from this directory:', StaticMetaData
+    print 'Using data from this directory:', STATICMETADATA
 
-    deltas = getHBADeltas('data/LOFAR/StaticMetaData/SE607-iHBADeltas.conf')
+    deltas = getHBADeltas(STATICMETADATA + 'SE607-iHBADeltas.conf')
     print deltas
 
-    #antfield = antennaField('CS013','data/LOFAR/StaticMetaData/CS013-AntennaField.conf')
-    #antfield = antennaField('RS208','data/LOFAR/StaticMetaData/RS208-AntennaField.conf')
-    #antfield = antennaField('UK608','data/LOFAR/StaticMetaData/UK608-AntennaField.conf')
+    #antfield = antennaField('CS013', STATICMETADATA + 'CS013-AntennaField.conf')
+    #antfield = antennaField('RS208', STATICMETADATA + 'RS208-AntennaField.conf')
+    #antfield = antennaField('UK608', STATICMETADATA + 'UK608-AntennaField.conf')
 
-    #antArrys = antennaArrays('CS013','data/LOFAR/StaticMetaData/CS013-AntennaArrays.conf')
-    #antArrys = antennaArrays('RS208','data/LOFAR/StaticMetaData/RS208-AntennaArrays.conf')
-    #antArrys = antennaArrays('UK608','data/LOFAR/StaticMetaData/UK608-AntennaArrays.conf')
-    CS013 = lofarStation('CS013','data/LOFAR/StaticMetaData/CS013-AntennaField.conf', 'data/LOFAR/StaticMetaData/CS013-AntennaArrays.conf')
+    #antArrys = antennaArrays('CS013', STATICMETADATA + 'CS013-AntennaArrays.conf')
+    #antArrys = antennaArrays('RS208', STATICMETADATA + 'RS208-AntennaArrays.conf')
+    #antArrys = antennaArrays('UK608', STATICMETADATA + 'UK608-AntennaArrays.conf')
+    CS013 = lofarStation('CS013', STATICMETADATA + 'CS013-AntennaField.conf', STATICMETADATA + 'CS013-AntennaArrays.conf')
     print CS013.name
-    RS208 = lofarStation('RS208','data/LOFAR/StaticMetaData/RS208-AntennaField.conf', 'data/LOFAR/StaticMetaData/RS208-AntennaArrays.conf')
+    RS208 = lofarStation('RS208', STATICMETADATA + 'RS208-AntennaField.conf', STATICMETADATA + 'RS208-AntennaArrays.conf')
     print RS208.name
-    UK608 = lofarStation('UK608','data/LOFAR/StaticMetaData/UK608-AntennaField.conf', 'data/LOFAR/StaticMetaData/UK608-AntennaArrays.conf')
+    UK608 = lofarStation('UK608', STATICMETADATA + 'UK608-AntennaField.conf', STATICMETADATA + 'UK608-AntennaArrays.conf')
     print UK608.name
-    SE607 = lofarStation('SE607','data/LOFAR/StaticMetaData/SE607-AntennaField.conf')
+    SE607 = lofarStation('SE607', STATICMETADATA + 'SE607-AntennaField.conf')
     print SE607.name
 
-    CS002 = lofarStation('CS002','data/LOFAR/StaticMetaData/CS002-AntennaField.conf', 'data/LOFAR/StaticMetaData/CS002-AntennaArrays.conf')
-    CS003 = lofarStation('CS003','data/LOFAR/StaticMetaData/CS003-AntennaField.conf', 'data/LOFAR/StaticMetaData/CS003-AntennaArrays.conf')
+    CS002 = lofarStation('CS002', STATICMETADATA + 'CS002-AntennaField.conf', STATICMETADATA + 'CS002-AntennaArrays.conf')
+    CS003 = lofarStation('CS003', STATICMETADATA + 'CS003-AntennaField.conf', STATICMETADATA + 'CS003-AntennaArrays.conf')
     rotMat = rotMatrixfromXYZ(CS002,'LBA')
     #print applyRotMatrix(CS002,rotMat,'LBA')
     #print applyRotMatrix(CS003,rotMat,'LBA')
@@ -269,11 +281,14 @@ if __name__ == '__main__':
     #print n.sqrt(ab[0]**2.+ab[1]**2.+ab[2]**2.)
 
     getLofarStation(name='SE607')
-    getLofarStation(affn='data/LOFAR/StaticMetaData/SE607-AntennaField.conf', aafn='data/LOFAR/StaticMetaData/SE607-AntennaArrays.conf')
-    getLofarStation(affn='data/LOFAR/StaticMetaData/SE607-AntennaField.conf', aafn='data/LOFAR/StaticMetaData/SE607-AntennaArrays.conf', deltas='data/LOFAR/StaticMetaData/SE607-iHBADeltas.conf')
+    getLofarStation(affn= STATICMETADATA + 'SE607-AntennaField.conf', aafn= STATICMETADATA + 'SE607-AntennaArrays.conf')
+    getLofarStation(affn= STATICMETADATA + 'SE607-AntennaField.conf', aafn= STATICMETADATA + 'SE607-AntennaArrays.conf', deltas= STATICMETADATA + 'SE607-iHBADeltas.conf')
 
     KAIRA = getLofarStation(name='KAIRA')
     print KAIRA.antField.antpos['LBA'].shape
+
+    IE613 = getLofarStation(name='IE613')
+    print IE613.antField.antpos['LBA'].shape
 
     print 'Made it through without any errors.'
 
