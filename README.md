@@ -7,14 +7,14 @@ A python package for generating radio interferometry images from LOFAR station A
 
 #### Required Python Modules
 
-* matplotlib (1.3.1)
-* numpy (1.8.2)
-* scipy (0.13.3) [special functions]
-* [ephem](http://rhodesmill.org/pyephem/) (3.7.5.2) [observatories]
-* [healpy](https://healpy.readthedocs.org/en/latest/) (1.9.0) [HEALPIX interface]
+* matplotlib (1.3.1>=)
+* numpy (1.8.2>=)
+* scipy (0.13.3>=) [special functions]
+* [ephem](http://rhodesmill.org/pyephem/) (3.7.5.2>=) [observatories]
 
 #### Optional Python Modules
 
+* [healpy](https://healpy.readthedocs.org/en/latest/) (1.9.0>=) [HEALPIX interface]
 * [python-casacore](https://github.com/casacore/python-casacore)
 
 #### Install

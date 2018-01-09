@@ -5,9 +5,14 @@ Produce an image from a set of SWHT brightness coefficients
 
 import numpy as np
 from matplotlib import pyplot as plt
-import healpy as hp
 import sys,os
 import SWHT
+
+try:
+    import healpy as hp
+    healpyEnabled = True
+except ImportError:
+    healpyEnabled = False
 
 #import scipy.constants
 #cc = scipy.constants.c

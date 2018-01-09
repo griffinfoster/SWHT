@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import datetime
 import sys,os
 import SWHT
-import healpy as hp
 
 #import scipy.constants
 #cc = scipy.constants.c

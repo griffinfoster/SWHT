@@ -8,7 +8,12 @@ import scipy.special
 import math
 import time
 import sys
-import healpy as hp
+
+try:
+    import healpy as hp
+    healpyEnabled = True
+except ImportError:
+    healpyEnabled = False
 
 import Ylm
 import util
@@ -319,7 +324,7 @@ def make3Dimage(coeffs, dim=[64, 64]):
 
     return img, phi, theta #flip theta and phi values
 
-#TODO: makeHEALPix: masking
+# TODO: makeHEALPix: masking
 # TODO: there is a rotation issue, something like phi and theta need to be flipped but that doesn't seem to fix it
 def makeHEALPix(coeffs, nside=64):
     """Make a HEALPix map from SWHT image coefficients, comparable to healpy.alm2map()

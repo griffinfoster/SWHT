@@ -5,10 +5,15 @@ Simulate visibilties based on a LOFAR station or Measurement Set from a HEALPIX 
 
 import sys,os
 import numpy as np
-import healpy as hp
 import datetime
 import ephem
 import SWHT
+
+try:
+    import healpy as hp
+    healpyEnabled = True
+except ImportError:
+    healpyEnabled = False
 
 #TODO: include beam
 #TODO: mask out dec min/max

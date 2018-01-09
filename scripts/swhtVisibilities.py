@@ -6,10 +6,15 @@ Perform a Spherical Wave Harmonic Transform on LOFAR ACC/XST data or widefield M
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
-#import ephem
 import sys,os
 import SWHT
-import healpy as hp
+
+try:
+    import healpy as hp
+    healpyEnabled = True
+except ImportError:
+    healpyEnabled = False
+
 #try:
 #    import casacore.tables as tbls
 #except ImportError:
