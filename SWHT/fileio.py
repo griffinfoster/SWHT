@@ -216,8 +216,8 @@ def lofarACCSelectSbs(fn, sbs, nchan, nantpol, intTime, antGains=None):
         if antGains is None:
             sbCorrMatrix[sbIdx] = corrMatrix[sb, :, :] # select out a single subband, shape (nantpol, nantpol)
         else: # Apply Gains
-            sbAntGains = antGains[sb][np.newaxis].T
-            sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+            sbAntGains = antGains[sb].T
+            sbVisGains = np.dot(sbAntGains, np.conj(sbAntGains.T))
             sbCorrMatrix[sbIdx] = np.multiply(sbVisGains, corrMatrix[sb, :, :]) # select out a single subband, shape (nantpol, nantpol)
 
         # correct the time due to subband stepping
@@ -246,15 +246,15 @@ def lofarXST(fn, sb, nantpol, antGains=None):
     """
     corrMatrix = np.fromfile(fn, dtype='complex').reshape(1, nantpol, nantpol) #read in the correlation matrix
     if antGains is None:
-        sbCorrMatrix = corrMatrix # shape (1, nantpol, nantpol)
+        sbCorrMatrix = corrMatrix[np.newaxis, ...] # shape (1, 1, nantpol, nantpol)
     else: # Apply Gains
-        sbAntGains = antGains[sb][np.newaxis].T
-        sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+        sbAntGains = antGains[sb].T
+        sbVisGains = np.dot(sbAntGains, np.conj(sbAntGains.T))
         sbCorrMatrix = np.multiply(sbVisGains, corrMatrix) # shape (1, nantpol, nantpol)
+        sbCorrMatrix = np.reshape(sbCorrMatrix, (1, 1, nantpol, nantpol)) # add integration axis
     tDeltas = [datetime.timedelta(0, 0)] # no time offset
 
     tDeltas = np.array(tDeltas)[np.newaxis] # put in the shape [Nsubbands, Nints]
-    sbCorrMatrix = np.reshape(sbCorrMatrix, (1, 1, nantpol, nantpol)) # add integration axis
 
     print 'CORRELATION MATRIX SHAPE', corrMatrix.shape
     print 'REDUCED CORRELATION MATRIX SHAPE', sbCorrMatrix.shape
@@ -302,8 +302,8 @@ def lofarKAIRAXST(fn, sb, nantpol, intTime, antGains=None, times='0'):
 
     tDeltas = [] # integration timestamp deltas from the end of file
     if antGains is not None: # Apply Gains
-        sbAntGains = antGains[sb][np.newaxis].T
-        sbVisGains = np.conjugate(np.dot(sbAntGains, sbAntGains.T)) # from Tobia, visibility gains are computed as (G . G^T)*
+        sbAntGains = antGains[sb].T
+        sbVisGains = np.dot(sbAntGains, np.conj(sbAntGains.T))
         reducedCorrMatrix = sbVisGains * reducedCorrMatrix # Apply gains
     for tIdx, tid in enumerate(tids):
         #if antGains is not None: # Apply Gains
