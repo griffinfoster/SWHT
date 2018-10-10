@@ -95,7 +95,7 @@ if __name__ == '__main__':
             else:
                 sbs = fDict['sb']
 
-            vis, uvw, freqs, obsInfo = SWHT.fileio.readXST(visFn, fDict, lofarStation, sbs)
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readXST(visFn, fDict, lofarStation, sbs, calTable=opts.calfile)
             [obsLat, obsLong, LSTangle] = obsInfo
 
             # add visibilities to previously processed files
