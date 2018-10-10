@@ -434,9 +434,13 @@ def readACC(fn, fDict, lofarStation, sbs, calTable=None):
 
     # read LOFAR Calibration Table
     if not (calTable is None):
+        antGains = lofarStation.antField.antGains
         if antGains is None: # read the Cal Table only once
             print 'Using CalTable:', calTable
             antGains = lofarConfig.readCalTable(calTable, nants, nchan, npols)
+            lofarStation.antField.antGains = antGains
+        else:
+            print 'Using Cached CalTable:', calTable
     else: antGains = None
 
     # get correlation matrix for subbands selected
@@ -487,11 +491,15 @@ def readXST(fn, fDict, lofarStation, sbs, calTable=None):
     print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
     npols = 2
 
-    #read LOFAR Calibration Table
+    # read LOFAR Calibration Table
     if not (calTable is None):
-        if antGains is None: #read the Cal Table only once
+        antGains = lofarStation.antField.antGains
+        if antGains is None: # read the Cal Table only once
             print 'Using CalTable:', calTable
             antGains = lofarConfig.readCalTable(calTable, nants, nchan, npols)
+            lofarStation.antField.antGains = antGains
+        else:
+            print 'Using Cached CalTable:', calTable
     else: antGains = None
 
     # get correlation matrix for subbands selected
@@ -545,11 +553,15 @@ def readKAIRAXST(fn, fDict, lofarStation, sbs, calTable=None, times='0'):
     print 'SUBBANDS:', sbs, '(', freqs/1e6, 'MHz)'
     npols = 2
 
-    #read LOFAR Calibration Table
+    # read LOFAR Calibration Table
     if not (calTable is None):
-        if antGains is None: #read the Cal Table only once
+        antGains = lofarStation.antField.antGains
+        if antGains is None: # read the Cal Table only once
             print 'Using CalTable:', calTable
             antGains = lofarConfig.readCalTable(calTable, nants, nchan, npols)
+            lofarStation.antField.antGains = antGains
+        else:
+            print 'Using Cached CalTable:', calTable
     else: antGains = None
 
     # get correlation matrix for subbands selected

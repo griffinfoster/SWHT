@@ -105,6 +105,7 @@ class antennaField():
         self.antpos = {} #ITRF positions relative to station ITRF in self.location
         self.localAntPos = {} #local horizon plane positions obtained from applying station rotation matrix to self.antpos
         self.location = {} #station ITRF position
+        self.antGains = None
         fh=open(fn)
         lines = []
         lines = fh.read().split('\n')
