@@ -222,7 +222,10 @@ if __name__ == '__main__':
     ## Imaging
     ####################
     if opts.of is None:
-        if opts.imageMode.startswith('heal'): outFn = 'tempImage.hpx'
+        if opts.imageMode.startswith('heal'): 
+            outFn = 'tempImage.hpx'
+            if os.path.exists(outFn):
+                os.remove(outFn)
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
 
