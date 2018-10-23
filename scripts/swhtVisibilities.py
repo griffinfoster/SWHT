@@ -123,7 +123,7 @@ if __name__ == '__main__':
             else:
                 sbs = fDict['sb']
 
-            vis, uvw, freqs, obsInfo = SWHT.fileio.readXST(visFn, fDict, lofarStation, sbs)
+            vis, uvw, freqs, obsInfo = SWHT.fileio.readXST(visFn, fDict, lofarStation, sbs, calTable=opts.calfile)
             [obsLat, obsLong, LSTangle] = obsInfo
 
             # add visibilities to previously processed files
@@ -222,7 +222,10 @@ if __name__ == '__main__':
     ## Imaging
     ####################
     if opts.of is None:
-        if opts.imageMode.startswith('heal'): outFn = 'tempImage.hpx'
+        if opts.imageMode.startswith('heal'): 
+            outFn = 'tempImage.hpx'
+            if os.path.exists(outFn):
+                os.remove(outFn)
         else: outFn = 'tempImage.pkl'
     else: outFn = opts.of
 
